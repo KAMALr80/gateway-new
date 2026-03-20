@@ -3,8 +3,76 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\Relations\MorphOne;
 
 class Product extends Model
 {
-    //
+    protected $fillable = [
+        'erp_product_id',
+        'category_id',
+        'sub_category_id',
+        'brand_id',
+        'name',
+        'slug',
+        'type',
+        'description',
+        'short_description',
+        'sku',
+        'regular_price',
+        'sale_price',
+        'manage_stock',
+        'stock_quantity',
+        'in_stock',
+        'is_active',
+        'attributes',
+        'synced_at',
+    ];
+
+    protected $casts = [
+        'regular_price'  => 'decimal:2',
+        'sale_price'     => 'decimal:2',
+        'manage_stock'   => 'boolean',
+        'in_stock'       => 'boolean',
+        'is_active'      => 'boolean',
+        'attributes'     => 'array',
+        'synced_at'      => 'datetime',
+    ];
+
+    // Current active price — sale price if set, otherwise regular price
+    public function getCurrentPriceAttribute(): string
+    {
+        return $this->sale_price ?? $this->regular_price;
+    }
+
+    public function isOnSale(): bool
+    {
+        return !is_null($this->sale_price) && $this->sale_price < $this->regular_price;
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(Category::class);
+    }
+
+    public function subCategory(): BelongsTo
+    {
+        return $this->belongsTo(Category::class, 'sub_category_id');
+    }
+
+    public function brand(): BelongsTo
+    {
+        return $this->belongsTo(Brand::class);
+    }
+
+    public function media(): MorphMany
+    {
+        return $this->morphMany(Media::class, 'mediable')->orderBy('sort_order');
+    }
+
+    public function primaryImage(): MorphOne
+    {
+        return $this->morphOne(Media::class, 'mediable')->where('is_primary', true);
+    }
 }

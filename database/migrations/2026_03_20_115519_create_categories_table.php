@@ -13,7 +13,17 @@ return new class extends Migration
     {
         Schema::create('categories', function (Blueprint $table) {
             $table->id();
+            $table->unsignedBigInteger('erp_category_id')->nullable()->unique();
+            $table->unsignedBigInteger('parent_id')->nullable();
+            $table->string('name');
+            $table->string('slug')->unique();
+            $table->text('description')->nullable();
+            $table->integer('sort_order')->default(0);
+            $table->boolean('is_active')->default(true);
             $table->timestamps();
+
+            $table->index('parent_id');
+            $table->index('is_active');
         });
     }
 
