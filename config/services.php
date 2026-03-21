@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'erp' => [
+        'order_webhook_url' => env('ERP_ORDER_WEBHOOK_URL'),
+        'webhook_secret'    => env('ERP_WEBHOOK_SECRET'),
+        'internal_key'      => env('INTERNAL_API_KEY'),
+    ],
+
 ];

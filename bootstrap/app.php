@@ -30,6 +30,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->alias([
+            'auth.jwt'     => \PHPOpenSourceSaver\JWTAuth\Http\Middleware\Authenticate::class,
             'internal.key' => \App\Http\Middleware\InternalApiKey::class,
         ]);
     })
