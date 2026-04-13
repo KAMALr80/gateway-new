@@ -22,6 +22,7 @@ class ProductController extends Controller
             'type',
             'in_stock',
             'search',
+            'include_children',
             'sort',
             'per_page',
             'page',
@@ -58,11 +59,44 @@ class ProductController extends Controller
             $query->where('in_stock', true);
         }
 
-        if ($request->filled('search')) {
-            $query->where(function ($q) use ($request) {
-                $q->where('name', 'like', "%{$request->search}%")
-                  ->orWhere('sku', 'like', "%{$request->search}%")
-                  ->orWhere('description', 'like', "%{$request->search}%");
+        $includeChildren = filter_var($request->input('include_children', false), FILTER_VALIDATE_BOOLEAN);
+        $search          = $request->filled('search') ? $request->search : null;
+
+        if (!$includeChildren) {
+            if ($search) {
+                // Show top-level products that match the search, OR grouped parents
+                // whose children match — so a child hit always surfaces the parent.
+                $query->where(function ($outerQ) use ($search) {
+                    $outerQ->where(function ($q) use ($search) {
+                        $q->whereNull('parent_id')
+                          ->where(function ($sq) use ($search) {
+                              $sq->where('name', 'like', "%{$search}%")
+                                 ->orWhere('sku', 'like', "%{$search}%")
+                                 ->orWhere('description', 'like', "%{$search}%");
+                          });
+                    })
+                    ->orWhereIn('id', function ($sub) use ($search) {
+                        $sub->select('parent_id')
+                            ->from('products')
+                            ->whereNotNull('parent_id')
+                            ->where(function ($sq) use ($search) {
+                                $sq->where('name', 'like', "%{$search}%")
+                                   ->orWhere('sku', 'like', "%{$search}%")
+                                   ->orWhere('description', 'like', "%{$search}%");
+                            });
+                    });
+                });
+                $search = null; // handled above, skip the block below
+            } else {
+                $query->whereNull('parent_id');
+            }
+        }
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('sku', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%");
             });
         }
 
@@ -93,9 +127,12 @@ class ProductController extends Controller
         return response()->json($data);
     }
 
-    public function show(int $id): JsonResponse
+    public function show(Request $request, int $id): JsonResponse
     {
-        $cached = $this->cache->getProduct($id);
+        $withSiblings = filter_var($request->input('with_siblings', false), FILTER_VALIDATE_BOOLEAN);
+
+        $cacheKey = $id . ($withSiblings ? ':siblings' : '');
+        $cached   = $this->cache->getProduct($cacheKey);
 
         if ($cached) {
             return response()->json($cached);
@@ -110,14 +147,34 @@ class ProductController extends Controller
         ->where('is_active', true)
         ->findOrFail($id);
 
-        $data = $this->formatProduct($product, detailed: true);
+        $groupData = ['parent' => null, 'children' => []];
 
-        $this->cache->putProduct($id, $data);
+        if ($product->type === 'grouped') {
+            $kids = $product->children()->with('primaryImage')->get();
+            $groupData['children'] = $kids->map(fn($p) => $this->formatProduct($p))->values()->all();
+        } elseif ($product->parent_id && $withSiblings) {
+            $parentProduct = $product->parent()->with('primaryImage')->first();
+            $siblings = $parentProduct
+                ? $parentProduct->children()->with('primaryImage')->where('id', '!=', $product->id)->get()
+                : collect();
+
+            $groupData['parent'] = $parentProduct ? [
+                'id'   => $parentProduct->id,
+                'name' => $parentProduct->name,
+                'slug' => $parentProduct->slug,
+            ] : null;
+
+            $groupData['children'] = $siblings->map(fn($p) => $this->formatProduct($p))->values()->all();
+        }
+
+        $data = $this->formatProduct($product, detailed: true, groupData: $groupData);
+
+        $this->cache->putProduct($cacheKey, $data);
 
         return response()->json($data);
     }
 
-    private function formatProduct(Product $product, bool $detailed = false): array
+    private function formatProduct(Product $product, bool $detailed = false, array $groupData = []): array
     {
         $data = [
             'id'            => $product->id,
@@ -159,6 +216,8 @@ class ProductController extends Controller
                 'alt'        => $m->alt,
                 'is_primary' => $m->is_primary,
             ]);
+            $data['parent']   = $groupData['parent']   ?? null;
+            $data['children'] = $groupData['children'] ?? [];
         }
 
         return $data;

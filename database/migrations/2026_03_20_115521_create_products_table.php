@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('products', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('erp_product_id')->nullable()->unique();
+            $table->string('erp_product_id', 64)->nullable()->unique();
             $table->foreignId('category_id')->nullable()->constrained()->nullOnDelete();
             $table->unsignedBigInteger('sub_category_id')->nullable();
             $table->foreignId('brand_id')->nullable()->constrained()->nullOnDelete();

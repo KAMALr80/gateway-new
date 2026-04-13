@@ -20,12 +20,14 @@ class ProductSyncController extends Controller
     {
         $request->validate([
             'products'                    => ['required', 'array'],
-            'products.*.erp_product_id'   => ['required', 'integer'],
-            'products.*.name'             => ['required', 'string'],
-            'products.*.regular_price'    => ['required', 'numeric'],
-            'products.*.is_active'        => ['sometimes', 'boolean'],
-            'products.*.images'           => ['sometimes', 'array'],
-            'products.*.images.*.url'     => ['required_with:products.*.images', 'string'],
+            'products.*.erp_product_id'      => ['required', 'string'],
+            'products.*.parent_erp_id'       => ['sometimes', 'nullable', 'string'],
+            'products.*.type'                => ['sometimes', 'string'],
+            'products.*.name'                => ['required', 'string'],
+            'products.*.regular_price'       => ['required', 'numeric'],
+            'products.*.is_active'           => ['sometimes', 'boolean'],
+            'products.*.images'              => ['sometimes', 'array'],
+            'products.*.images.*.url'        => ['required_with:products.*.images', 'string'],
             'products.*.images.*.is_primary' => ['sometimes', 'boolean'],
         ]);
 
@@ -49,9 +51,16 @@ class ProductSyncController extends Controller
                     ? Brand::where('erp_brand_id', $data['erp_brand_id'])->first()
                     : null;
 
+                // Resolve parent by ERP ID
+                $parentId = null;
+                if (!empty($data['parent_erp_id'])) {
+                    $parentId = Product::where('erp_product_id', $data['parent_erp_id'])->value('id');
+                }
+
                 $product = Product::updateOrCreate(
                     ['erp_product_id' => $data['erp_product_id']],
                     [
+                        'parent_id'        => $parentId,
                         'category_id'      => $category?->id,
                         'sub_category_id'  => $subCategory?->id,
                         'brand_id'         => $brand?->id,

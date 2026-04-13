@@ -23,14 +23,14 @@ class CacheService
     // Products
     // -------------------------------------------------------
 
-    public function getProduct(int $id): mixed
+    public function getProduct(string|int $key): mixed
     {
-        return Cache::get(self::KEY_PRODUCT . $id);
+        return Cache::get(self::KEY_PRODUCT . $key);
     }
 
-    public function putProduct(int $id, mixed $data): void
+    public function putProduct(string|int $key, mixed $data): void
     {
-        Cache::put(self::KEY_PRODUCT . $id, $data, self::TTL_PRODUCTS);
+        Cache::put(self::KEY_PRODUCT . $key, $data, self::TTL_PRODUCTS);
     }
 
     public function getProductList(string $fingerprint): mixed
@@ -99,6 +99,7 @@ class CacheService
     public function invalidateProduct(int $id): void
     {
         Cache::forget(self::KEY_PRODUCT . $id);
+        Cache::forget(self::KEY_PRODUCT . $id . ':siblings');
         // Also clear all list caches since a product changed
         $this->invalidateProductLists();
     }
