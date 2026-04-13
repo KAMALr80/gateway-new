@@ -300,6 +300,8 @@ All fields are optional. Only include fields to update.
 
 Returns a paginated list of active products. Supports filtering and sorting. Results are served from Redis cache keyed by a fingerprint of the query parameters.
 
+By default, only top-level and grouped parent products are returned — child products (those that belong to a group) are hidden. Pass `include_children=true` to include them.
+
 **Auth required:** Yes
 
 #### Query Parameters
@@ -309,9 +311,10 @@ Returns a paginated list of active products. Supports filtering and sorting. Res
 | `category_id` | integer | — | Filter by main category. |
 | `sub_category_id` | integer | — | Filter by sub-category. |
 | `brand_id` | integer | — | Filter by brand. |
-| `type` | string | — | Filter by product type (e.g. `simple`, `variable`). |
+| `type` | string | — | Filter by product type (e.g. `simple`, `variable`, `grouped`). |
 | `in_stock` | boolean | — | When `true`, returns only in-stock products. |
-| `search` | string | — | Full-text search across `name`, `sku`, and `description`. |
+| `search` | string | — | Full-text search across `name`, `sku`, and `description`. When `include_children` is `false`, a match on a child product returns the child's grouped parent instead. |
+| `include_children` | boolean | `false` | When `false`, child products (those with a `parent_id`) are excluded from results. Pass `true` to include them. |
 | `sort` | string | `name_asc` | Sort order. Options: `price_asc`, `price_desc`, `newest`, `name_asc`. |
 | `per_page` | integer | `20` | Results per page. Maximum `100`. |
 | `page` | integer | `1` | Page number. |
@@ -395,19 +398,75 @@ Returns a paginated list of active products. Supports filtering and sorting. Res
 
 Returns full detail for a single active product, including all images, description, and attributes. Served from Redis cache.
 
+For grouped products (`type = "grouped"`), the `children` array is always included in the response.
+
+For child products, pass `?with_siblings=1` to include the `parent` object and the `children` array of sibling products.
+
 **Auth required:** Yes
 
 | Path Parameter | Type | Description |
 |---|---|---|
 | `id` | integer | Gateway product ID. |
 
-#### Response `200`
+#### Query Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `with_siblings` | boolean | `false` | For child products: includes `parent` object and sibling `children[]` in the response. Has no effect on standalone products. |
+
+#### Response `200` — standalone or grouped product
 
 ```json
 {
-  "id": 12,
+  "id": 10,
   "name": "Wireless Headphones X1",
   "slug": "wireless-headphones-x1",
+  "type": "grouped",
+  "sku": null,
+  "regular_price": "149.99",
+  "sale_price": null,
+  "current_price": "149.99",
+  "on_sale": false,
+  "in_stock": true,
+  "stock_quantity": null,
+  "image": "https://cdn.example.com/products/wh-x1-main.jpg",
+  "category": { "id": 3, "name": "Electronics", "slug": "electronics" },
+  "sub_category": null,
+  "brand": { "id": 2, "name": "Acme Corp", "slug": "acme-corp" },
+  "description": "Available in Black and White.",
+  "short_description": "Premium wireless headphones.",
+  "attributes": null,
+  "images": [],
+  "parent": null,
+  "children": [
+    {
+      "id": 11,
+      "name": "Wireless Headphones X1 — Black",
+      "slug": "wireless-headphones-x1-black",
+      "type": "simple",
+      "sku": "WH-X1-BLK",
+      "regular_price": "149.99",
+      "sale_price": "119.99",
+      "current_price": "119.99",
+      "on_sale": true,
+      "in_stock": true,
+      "stock_quantity": 50,
+      "image": "https://cdn.example.com/products/wh-x1-blk.jpg",
+      "category": { "id": 3, "name": "Electronics", "slug": "electronics" },
+      "sub_category": null,
+      "brand": { "id": 2, "name": "Acme Corp", "slug": "acme-corp" }
+    }
+  ]
+}
+```
+
+#### Response `200` — child product with `?with_siblings=1`
+
+```json
+{
+  "id": 11,
+  "name": "Wireless Headphones X1 — Black",
+  "slug": "wireless-headphones-x1-black",
   "type": "simple",
   "sku": "WH-X1-BLK",
   "regular_price": "149.99",
@@ -416,28 +475,43 @@ Returns full detail for a single active product, including all images, descripti
   "on_sale": true,
   "in_stock": true,
   "stock_quantity": 50,
-  "image": "https://cdn.example.com/products/wh-x1-main.jpg",
+  "image": "https://cdn.example.com/products/wh-x1-blk.jpg",
   "category": { "id": 3, "name": "Electronics", "slug": "electronics" },
-  "sub_category": { "id": 7, "name": "Headphones", "slug": "headphones" },
+  "sub_category": null,
   "brand": { "id": 2, "name": "Acme Corp", "slug": "acme-corp" },
-  "description": "Full product description here.",
-  "short_description": "Compact short description.",
-  "attributes": {
-    "color": "Black",
-    "connectivity": "Bluetooth 5.0"
-  },
+  "description": "Full description.",
+  "short_description": "Black variant.",
+  "attributes": { "color": "Black" },
   "images": [
     {
-      "url": "https://cdn.example.com/products/wh-x1-main.jpg",
-      "thumbnail": "https://cdn.example.com/products/wh-x1-main-thumb.jpg",
-      "alt": "Wireless Headphones X1 front view",
-      "is_primary": true
-    },
-    {
-      "url": "https://cdn.example.com/products/wh-x1-side.jpg",
+      "url": "https://cdn.example.com/products/wh-x1-blk.jpg",
       "thumbnail": null,
-      "alt": "Wireless Headphones X1 side view",
-      "is_primary": false
+      "alt": "Wireless Headphones X1 — Black",
+      "is_primary": true
+    }
+  ],
+  "parent": {
+    "id": 10,
+    "name": "Wireless Headphones X1",
+    "slug": "wireless-headphones-x1"
+  },
+  "children": [
+    {
+      "id": 12,
+      "name": "Wireless Headphones X1 — White",
+      "slug": "wireless-headphones-x1-white",
+      "type": "simple",
+      "sku": "WH-X1-WHT",
+      "regular_price": "149.99",
+      "sale_price": null,
+      "current_price": "149.99",
+      "on_sale": false,
+      "in_stock": true,
+      "stock_quantity": 30,
+      "image": "https://cdn.example.com/products/wh-x1-wht.jpg",
+      "category": { "id": 3, "name": "Electronics", "slug": "electronics" },
+      "sub_category": null,
+      "brand": { "id": 2, "name": "Acme Corp", "slug": "acme-corp" }
     }
   ]
 }
@@ -455,6 +529,8 @@ Returns full detail for a single active product, including all images, descripti
 | `images[].thumbnail` | string\|null | Thumbnail URL, if available. |
 | `images[].alt` | string\|null | Alt text. |
 | `images[].is_primary` | boolean | Whether this is the primary display image. |
+| `parent` | object\|null | `{ id, name, slug }` of the grouped parent. Present on child products when `?with_siblings=1` is passed; `null` otherwise. Always `null` for standalone and grouped products. |
+| `children` | array | For grouped products: always populated with child product objects (list shape). For child products with `?with_siblings=1`: populated with sibling products. Empty array in all other cases. |
 
 **Not found response `404`:**
 ```json

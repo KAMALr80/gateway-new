@@ -17,6 +17,7 @@ Brands and Categories must be synced before Products, since Products resolve for
 1. POST /internal/brands/sync
 2. POST /internal/categories/sync
 3. POST /internal/products/sync     ← depends on brands + categories
+                                       grouped parent products must arrive before children
 4. POST /internal/contacts/sync     ← independent
    POST /internal/orders/status/sync ← independent, triggered by ERP order state changes
 ```
@@ -210,11 +211,17 @@ Upserts categories. Resolves parent-child relationships in a second pass so pare
 
 ### POST /internal/products/sync
 
-Upserts products. Resolves `category_id`, `sub_category_id`, and `brand_id` from ERP IDs. Replaces all product images on each sync. Invalidates product cache on completion.
+Upserts products. Resolves `category_id`, `sub_category_id`, `brand_id`, and `parent_id` from ERP IDs. Replaces all product images on each sync. Invalidates product cache on completion.
 
 **Controller:** `App\Http\Controllers\Internal\ProductSyncController@sync`
 
-**Prerequisite:** Brands and Categories must be synced before Products.
+**Prerequisites:**
+- Brands and Categories must be synced before Products
+- For grouped products: sync the grouped parent product first (with `type = "grouped"`), then sync its children (with `parent_erp_id` set). `parent_id` is resolved at sync time — if the parent row does not exist yet, it will be set to `null`
+
+#### Product Groups
+
+Groups are modelled as a parent product with `type = "grouped"` and a string ERP ID (e.g. `"GROUP1234"`). Individual child products point back to the group via `parent_erp_id`. This mirrors the ERP's own grouping structure.
 
 #### Request Body
 
@@ -222,11 +229,19 @@ Upserts products. Resolves `category_id`, `sub_category_id`, and `brand_id` from
 {
   "products": [
     {
-      "erp_product_id": 200,
+      "erp_product_id": "GROUP200",
+      "name": "Wireless Headphones X1",
+      "type": "grouped",
+      "regular_price": 149.99,
+      "is_active": true
+    },
+    {
+      "erp_product_id": "201",
+      "parent_erp_id": "GROUP200",
       "erp_category_id": 10,
       "erp_sub_category_id": 11,
       "erp_brand_id": 42,
-      "name": "Wireless Headphones X1",
+      "name": "Wireless Headphones X1 — Black",
       "sku": "WH-X1-BLK",
       "type": "simple",
       "description": "Full product description here.",
@@ -261,14 +276,15 @@ Upserts products. Resolves `category_id`, `sub_category_id`, and `brand_id` from
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `products` | array | Yes | Array of product objects. |
-| `products[].erp_product_id` | integer | Yes | ERP's stable product ID. Used as upsert key. |
+| `products[].erp_product_id` | string | Yes | ERP's stable product ID. Used as upsert key. Accepts alphanumeric values — use a prefix convention (e.g. `GROUP1234`) for grouped products. |
 | `products[].name` | string | Yes | Product display name. `slug` is auto-generated. |
 | `products[].regular_price` | numeric | Yes | Base price before any sale. |
+| `products[].parent_erp_id` | string\|null | No | ERP ID of the grouped parent product. Resolved to Gateway's internal `parent_id`. Set on child products only. |
 | `products[].erp_category_id` | integer | No | ERP category ID. Resolved to Gateway `category_id`. |
 | `products[].erp_sub_category_id` | integer | No | ERP sub-category ID. Resolved to Gateway `sub_category_id`. |
 | `products[].erp_brand_id` | integer | No | ERP brand ID. Resolved to Gateway `brand_id`. |
 | `products[].sku` | string | No | Product SKU. |
-| `products[].type` | string | No | Product type (e.g. `simple`, `variable`). Defaults to `simple`. |
+| `products[].type` | string | No | Product type. Use `grouped` for parent products, `simple` or `variable` for individual products. Defaults to `simple`. |
 | `products[].description` | string\|null | No | Full product description. |
 | `products[].short_description` | string\|null | No | Brief product summary. |
 | `products[].sale_price` | numeric\|null | No | Discounted price. `null` means no active sale. |
@@ -309,9 +325,10 @@ Upserts products. Resolves `category_id`, `sub_category_id`, and `brand_id` from
 
 - Upsert key: `erp_product_id`
 - `erp_category_id`, `erp_sub_category_id`, `erp_brand_id` are resolved to Gateway internal IDs at sync time. If a referenced brand or category has not been synced yet, those FK fields will be set to `null` — no error is raised
+- `parent_erp_id` is resolved to Gateway's internal `parent_id` integer FK at sync time. If the referenced parent has not been synced yet, `parent_id` is set to `null`. **Sync grouped parents before children to avoid this.**
 - **Image replacement:** when `images` is present, all existing media records for that product are deleted and replaced with the new set. Sort order follows array index order. If `images` is omitted, existing images are left unchanged
 - `synced_at` timestamp is set to the current time on every sync
-- Individual product cache (`product:{id}`) and all product list caches (`products:list:*`) are invalidated after sync
+- Individual product caches (`product:{id}`, `product:{id}:siblings`) and all product list caches (`products:list:*`) are invalidated after sync
 
 ---
 
@@ -479,6 +496,7 @@ POST /internal/categories/sync
 
 POST /internal/products/sync
   → { "products": [ ... ] }      ← categories and brands must exist first
+                                 ← grouped parent products must arrive before children
 
 POST /internal/contacts/sync
   → { "contacts": [ ... ] }
