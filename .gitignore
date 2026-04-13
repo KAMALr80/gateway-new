@@ -26,4 +26,5 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
-context.md
+docs/context.md
+/.claude

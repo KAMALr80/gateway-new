@@ -25,7 +25,6 @@ return new class extends Migration
             $table->integer('sort_order')->default(0);
             $table->timestamps();
 
-            $table->index(['mediable_type', 'mediable_id']);
             $table->index('is_primary');
         });
     }
