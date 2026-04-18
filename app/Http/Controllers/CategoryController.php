@@ -24,7 +24,8 @@ class CategoryController extends Controller
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->get()
-            ->map(fn($c) => $this->formatCategory($c));
+            ->map(fn($c) => $this->formatCategory($c))
+            ->values()->all();
 
         $data = ['data' => $categories];
 
@@ -67,7 +68,7 @@ class CategoryController extends Controller
                                     'name' => $c->name,
                                     'slug' => $c->slug,
                                     'image' => $c->primaryImage?->public_url,
-                                ]),
+                                ])->values()->all(),
         ];
 
         if ($detailed) {

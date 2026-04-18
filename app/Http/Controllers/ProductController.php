@@ -113,7 +113,7 @@ class ProductController extends Controller
         $products = $query->paginate($perPage);
 
         $data = [
-            'data' => $products->map(fn($p) => $this->formatProduct($p)),
+            'data' => $products->map(fn($p) => $this->formatProduct($p))->values()->all(),
             'meta' => [
                 'current_page' => $products->currentPage(),
                 'per_page'     => $products->perPage(),
@@ -215,7 +215,7 @@ class ProductController extends Controller
                 'thumbnail'  => $m->thumbnail_url,
                 'alt'        => $m->alt,
                 'is_primary' => $m->is_primary,
-            ]);
+            ])->values()->all();
             $data['parent']   = $groupData['parent']   ?? null;
             $data['children'] = $groupData['children'] ?? [];
         }

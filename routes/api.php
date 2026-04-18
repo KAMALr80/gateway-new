@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AddressController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\UserController;
@@ -10,8 +11,9 @@ use Illuminate\Support\Facades\Route;
 
 // Public
 Route::prefix('auth')->group(function () {
-    Route::post('/login',   [AuthController::class, 'login']);
-    Route::post('/refresh', [AuthController::class, 'refresh']);
+    Route::post('/register', [AuthController::class, 'register']);
+    Route::post('/login',    [AuthController::class, 'login']);
+    Route::post('/refresh',  [AuthController::class, 'refresh']);
 });
 
 // Protected
@@ -41,4 +43,11 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/orders',          [OrderController::class, 'store']);
     Route::get('/orders/{id}',      [OrderController::class, 'show']);
     Route::get('/orders',           [OrderController::class, 'index']);
+
+    // Addresses
+    Route::get('/addresses',        [AddressController::class, 'index']);
+    Route::post('/addresses',       [AddressController::class, 'store']);
+    Route::get('/addresses/{id}',   [AddressController::class, 'show']);
+    Route::patch('/addresses/{id}', [AddressController::class, 'update']);
+    Route::delete('/addresses/{id}',[AddressController::class, 'destroy']);
 });
