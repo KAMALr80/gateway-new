@@ -86,6 +86,12 @@ Failed validation returns `422` with field-level detail:
   - [GET /api/orders](#get-apiorders)
   - [POST /api/orders](#post-apiorders)
   - [GET /api/orders/{id}](#get-apiordersid)
+- [Addresses](#addresses)
+  - [GET /api/addresses](#get-apiaddresses)
+  - [POST /api/addresses](#post-apiaddresses)
+  - [GET /api/addresses/{id}](#get-apiaddressesid)
+  - [PATCH /api/addresses/{id}](#patch-apiaddressesid)
+  - [DELETE /api/addresses/{id}](#delete-apiaddressesid)
 
 ---
 
@@ -1023,6 +1029,217 @@ Returns full detail for a single order belonging to the authenticated user, incl
 | `items[].unit_price` | numeric | Price per unit at time of order. |
 | `items[].unit_tax` | numeric | Tax per unit. |
 | `items[].total` | numeric | `(unit_price + unit_tax) × quantity`. |
+
+---
+
+## Addresses
+
+A user's address book. Each address has structured fields matching the billing/shipping format used in orders. One address per user can be marked `is_default` — the mobile app can use this to pre-fill order forms.
+
+**Auth required:** Yes (all endpoints)
+
+### Address object
+
+```json
+{
+  "id": 1,
+  "label": "Home",
+  "first_name": "Jane",
+  "last_name": "Doe",
+  "company": null,
+  "address_1": "123 Main Street",
+  "address_2": null,
+  "city": "Springfield",
+  "state": "IL",
+  "postcode": "62701",
+  "country": "US",
+  "phone": "+1-555-0100",
+  "is_default": true
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | integer | Address ID. |
+| `label` | string\|null | User-assigned label (e.g. "Home", "Office"). |
+| `first_name` | string | First name. |
+| `last_name` | string | Last name. |
+| `company` | string\|null | Company name. |
+| `address_1` | string | Primary address line. |
+| `address_2` | string\|null | Secondary address line. |
+| `city` | string | City. |
+| `state` | string\|null | State or region. |
+| `postcode` | string | Postal/ZIP code. |
+| `country` | string | ISO 3166-1 alpha-2 country code (e.g. `US`). |
+| `phone` | string\|null | Contact phone number. |
+| `is_default` | boolean | Whether this is the user's default address. Exactly one address per user can be `true`. |
+
+---
+
+### GET /api/addresses
+
+Returns all saved addresses for the authenticated user. The default address is always listed first.
+
+#### Response `200`
+
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "label": "Home",
+      "first_name": "Jane",
+      "last_name": "Doe",
+      "company": null,
+      "address_1": "123 Main Street",
+      "address_2": null,
+      "city": "Springfield",
+      "state": "IL",
+      "postcode": "62701",
+      "country": "US",
+      "phone": "+1-555-0100",
+      "is_default": true
+    }
+  ]
+}
+```
+
+---
+
+### POST /api/addresses
+
+Creates a new address for the authenticated user. Returns `201` with the created address.
+
+#### Request Body
+
+```json
+{
+  "label": "Home",
+  "first_name": "Jane",
+  "last_name": "Doe",
+  "company": null,
+  "address_1": "123 Main Street",
+  "address_2": null,
+  "city": "Springfield",
+  "state": "IL",
+  "postcode": "62701",
+  "country": "US",
+  "phone": "+1-555-0100",
+  "is_default": true
+}
+```
+
+| Field | Type | Required | Constraints | Description |
+|---|---|---|---|---|
+| `label` | string | No | max 50 | Optional user-assigned label. |
+| `first_name` | string | Yes | max 100 | |
+| `last_name` | string | Yes | max 100 | |
+| `company` | string\|null | No | max 255 | |
+| `address_1` | string | Yes | max 255 | |
+| `address_2` | string\|null | No | max 255 | |
+| `city` | string | Yes | max 100 | |
+| `state` | string\|null | No | max 100 | |
+| `postcode` | string | Yes | max 20 | |
+| `country` | string | Yes | exactly 2 chars | ISO 3166-1 alpha-2. |
+| `phone` | string\|null | No | max 20 | |
+| `is_default` | boolean | No | | When `true`, all other addresses are unset as default. |
+
+#### Notes
+
+- If this is the user's **first address**, it is automatically set as the default regardless of the `is_default` field.
+- If `is_default` is `true`, all other addresses for the user have their `is_default` cleared atomically.
+
+#### Response `201`
+
+```json
+{
+  "message": "Address created successfully",
+  "data": { ... }
+}
+```
+
+---
+
+### GET /api/addresses/{id}
+
+Returns a single address belonging to the authenticated user.
+
+| Path Parameter | Type | Description |
+|---|---|---|
+| `id` | integer | Address ID. Must belong to the authenticated user. |
+
+#### Response `200`
+
+Address object (see shape above).
+
+**Not found / wrong user response `404`:**
+```json
+{
+  "message": "No query results for model [App\\Models\\Address] 99"
+}
+```
+
+---
+
+### PATCH /api/addresses/{id}
+
+Updates fields on an existing address. All fields are optional — only include fields to change.
+
+**Auth required:** Yes
+
+| Path Parameter | Type | Description |
+|---|---|---|
+| `id` | integer | Address ID. Must belong to the authenticated user. |
+
+#### Request Body
+
+Same fields as [POST /api/addresses](#post-apiaddresses), all optional.
+
+#### Notes
+
+- If `is_default` is `true`, all other addresses for the user have their `is_default` cleared atomically.
+- Omitting `is_default` (or sending `false`) does not change the current default state of other addresses.
+
+#### Response `200`
+
+```json
+{
+  "message": "Address updated successfully",
+  "data": { ... }
+}
+```
+
+**Not found / wrong user response `404`:**
+```json
+{
+  "message": "No query results for model [App\\Models\\Address] 99"
+}
+```
+
+---
+
+### DELETE /api/addresses/{id}
+
+Deletes an address belonging to the authenticated user.
+
+| Path Parameter | Type | Description |
+|---|---|---|
+| `id` | integer | Address ID. Must belong to the authenticated user. |
+
+#### Response `200`
+
+```json
+{
+  "message": "Address deleted"
+}
+```
+
+**Not found / wrong user response `404`:**
+```json
+{
+  "message": "No query results for model [App\\Models\\Address] 99"
+}
+```
 
 ---
 
