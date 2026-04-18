@@ -65,6 +65,7 @@ Failed validation returns `422` with field-level detail:
 ## Endpoints
 
 - [Authentication](#authentication-1)
+  - [POST /api/auth/register](#post-apiauthregister)
   - [POST /api/auth/login](#post-apiauthlogin)
   - [POST /api/auth/refresh](#post-apiauthrefresh)
   - [POST /api/auth/validate](#post-apiauthvalidate)
@@ -89,6 +90,54 @@ Failed validation returns `422` with field-level detail:
 ---
 
 ## Authentication
+
+### POST /api/auth/register
+
+Registers a new user account. No authentication required. Accounts created via this endpoint are set to **pending** status and must be approved by an administrator before the user can log in.
+
+#### Request Body
+
+```json
+{
+  "name": "Jane Doe",
+  "email": "jane.doe@example.com",
+  "password": "secret123",
+  "password_confirmation": "secret123"
+}
+```
+
+| Field | Type | Required | Constraints | Description |
+|---|---|---|---|---|
+| `name` | string | Yes | max 255 | Full name. |
+| `email` | string | Yes | Valid email, unique across all users | Email address. |
+| `password` | string | Yes | min 8 characters | Password. |
+| `password_confirmation` | string | Yes | Must match `password` | Password confirmation. |
+
+#### Response `201`
+
+```json
+{
+  "message": "Registration successful. Your account is pending approval before you can log in."
+}
+```
+
+**Duplicate email response `422`:**
+```json
+{
+  "message": "The email has already been taken.",
+  "errors": {
+    "email": ["The email has already been taken."]
+  }
+}
+```
+
+#### Notes
+
+- Email uniqueness is enforced — registering with an existing email returns `422`
+- The account is created with `approval_status = pending`. The user cannot log in until an administrator approves the account
+- Users synced from the ERP via `POST /internal/contacts/sync` are pre-approved and do not need manual approval
+
+---
 
 ### POST /api/auth/login
 
@@ -137,6 +186,13 @@ Authenticates a user and returns a JWT token. No authentication required.
 ```json
 {
   "message": "Invalid credentials"
+}
+```
+
+**Pending approval response `403`:**
+```json
+{
+  "message": "Your account is pending approval."
 }
 ```
 

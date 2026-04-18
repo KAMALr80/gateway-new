@@ -10,8 +10,9 @@ use Illuminate\Support\Facades\Route;
 
 // Public
 Route::prefix('auth')->group(function () {
-    Route::post('/login',   [AuthController::class, 'login']);
-    Route::post('/refresh', [AuthController::class, 'refresh']);
+    Route::post('/register', [AuthController::class, 'register']);
+    Route::post('/login',    [AuthController::class, 'login']);
+    Route::post('/refresh',  [AuthController::class, 'refresh']);
 });
 
 // Protected

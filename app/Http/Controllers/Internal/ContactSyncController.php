@@ -32,21 +32,25 @@ class ContactSyncController extends Controller
                 if ($existing) {
                     // Update existing user — never overwrite password
                     $existing->update([
-                        'name'           => $data['name'],
-                        'phone'          => $data['phone']   ?? $existing->phone,
-                        'address'        => $data['address'] ?? $existing->address,
-                        'erp_contact_id' => $data['erp_contact_id'],
+                        'name'            => $data['name'],
+                        'phone'           => $data['phone']   ?? $existing->phone,
+                        'address'         => $data['address'] ?? $existing->address,
+                        'erp_contact_id'  => $data['erp_contact_id'],
+                        'approval_status' => 'approved',
+                        'approved_by'     => 'erp_sync',
                     ]);
                 } else {
-                    // Create new user with a random password
-                    // They must use forgot password flow to set their own
+                    // Create new user with a random password — pre-approved as ERP contact
+                    // They must use forgot password flow to set their own password
                     User::create([
-                        'name'           => $data['name'],
-                        'email'          => $data['email'],
-                        'password'       => Hash::make(Str::random(32)),
-                        'phone'          => $data['phone']   ?? null,
-                        'address'        => $data['address'] ?? null,
-                        'erp_contact_id' => $data['erp_contact_id'],
+                        'name'            => $data['name'],
+                        'email'           => $data['email'],
+                        'password'        => Hash::make(Str::random(32)),
+                        'phone'           => $data['phone']   ?? null,
+                        'address'         => $data['address'] ?? null,
+                        'erp_contact_id'  => $data['erp_contact_id'],
+                        'approval_status' => 'approved',
+                        'approved_by'     => 'erp_sync',
                     ]);
                 }
 
