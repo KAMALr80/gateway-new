@@ -27,7 +27,7 @@ class BrandController extends Controller
                 'name'  => $b->name,
                 'slug'  => $b->slug,
                 'image' => $b->primaryImage?->public_url,
-            ]);
+            ])->values()->all();
 
         $data = ['data' => $brands];
 
