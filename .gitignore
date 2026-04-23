@@ -28,3 +28,6 @@ yarn-error.log
 /.zed
 docs/context.md
 /.claude
+.htaccess
+/public/.htaccess
+error_log

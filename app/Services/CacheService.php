@@ -33,14 +33,26 @@ class CacheService
         Cache::put(self::KEY_PRODUCT . $key, $data, self::TTL_PRODUCTS);
     }
 
+    /**
+     * Retrieve the current global product version timestamp for cache busting list fingerprints dynamically.
+     */
+    protected function getProductVersion(): string
+    {
+        return Cache::rememberForever('global_product_version', function () {
+            return time();
+        });
+    }
+
     public function getProductList(string $fingerprint): mixed
     {
-        return Cache::get(self::KEY_PRODUCT_LIST . $fingerprint);
+        $versionedKey = self::KEY_PRODUCT_LIST . $this->getProductVersion() . ':' . $fingerprint;
+        return Cache::get($versionedKey);
     }
 
     public function putProductList(string $fingerprint, mixed $data): void
     {
-        Cache::put(self::KEY_PRODUCT_LIST . $fingerprint, $data, self::TTL_PRODUCTS);
+        $versionedKey = self::KEY_PRODUCT_LIST . $this->getProductVersion() . ':' . $fingerprint;
+        Cache::put($versionedKey, $data, self::TTL_PRODUCTS);
     }
 
     // -------------------------------------------------------
@@ -106,8 +118,10 @@ class CacheService
 
     public function invalidateProductLists(): void
     {
-        // Redis tag-based flush for all product list keys
-        Cache::deleteMatching(self::KEY_PRODUCT_LIST . '*');
+        // Because Database/File drivers do not support wildcard deleteMatching or tags natively,
+        // we step the global version key. This immediately orphans all existing product lists,
+        // forcing them to be recreated. Old lists will just safely evaporate once their TTL expires.
+        Cache::put('global_product_version', time());
     }
 
     public function invalidateCategory(int $id): void
