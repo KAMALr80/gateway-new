@@ -8,8 +8,6 @@ use App\Models\Media;
 use App\Services\CacheService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
-
 class CategorySyncController extends Controller
 {
     public function __construct(protected CacheService $cache) {}
@@ -37,7 +35,6 @@ class CategorySyncController extends Controller
                     ['erp_category_id' => $data['erp_category_id']],
                     [
                         'name'        => $data['name'],
-                        'slug'        => Str::slug($data['name']),
                         'description' => $data['description'] ?? null,
                         'sort_order'  => $data['sort_order']  ?? 0,
                         'is_active'   => $data['is_active']   ?? true,

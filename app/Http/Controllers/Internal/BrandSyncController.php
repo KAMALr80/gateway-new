@@ -8,8 +8,6 @@ use App\Models\Media;
 use App\Services\CacheService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
-
 class BrandSyncController extends Controller
 {
     public function __construct(protected CacheService $cache) {}
@@ -33,7 +31,6 @@ class BrandSyncController extends Controller
                     ['erp_brand_id' => $data['erp_brand_id']],
                     [
                         'name'      => $data['name'],
-                        'slug'      => Str::slug($data['name']),
                         'is_active' => $data['is_active'] ?? true,
                     ]
                 );
