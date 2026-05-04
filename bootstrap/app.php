@@ -30,8 +30,10 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->alias([
-            'auth.jwt'     => \PHPOpenSourceSaver\JWTAuth\Http\Middleware\Authenticate::class,
-            'internal.key' => \App\Http\Middleware\InternalApiKey::class,
+            'auth.jwt'        => \PHPOpenSourceSaver\JWTAuth\Http\Middleware\Authenticate::class,
+            'internal.key'    => \App\Http\Middleware\InternalApiKey::class,
+            'auth.optional'   => \App\Http\Middleware\OptionalAuth::class,
+            'require.approved' => \App\Http\Middleware\RequireApproved::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
