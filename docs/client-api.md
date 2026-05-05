@@ -1,6 +1,6 @@
 # Gateway — Client API
 
-**Version:** 1.0  
+**Version:** 2.0  
 **Base URL:** `{GATEWAY_URL}/api`  
 **Audience:** Flutter mobile app
 
@@ -10,11 +10,13 @@
 
 This API is the sole interface between the mobile app and the backend. The app never communicates directly with the ERP. All catalog data (products, categories, brands) is served from Redis cache. Orders are placed synchronously but dispatched to the ERP asynchronously via a queue.
 
+**Catalogue browsing (products, categories, brands) is publicly accessible without authentication.** Prices are only included in responses for authenticated users whose account has been approved. All other write operations (orders, wishlists, addresses) require a valid JWT token.
+
 ---
 
 ## Authentication
 
-Protected routes require a JWT bearer token obtained from `POST /api/auth/login`.
+Most write routes and all user-specific routes require a JWT bearer token obtained from `POST /api/auth/login`.
 
 | Header | Value |
 |---|---|
@@ -29,7 +31,26 @@ Protected routes require a JWT bearer token obtained from `POST /api/auth/login`
 }
 ```
 
+**Unapproved account response (403):**
+```json
+{
+  "message": "Your account is pending approval."
+}
+```
+
 **Token lifetime** is configured via `JWT_TTL` (default 1440 minutes / 24 hours). Tokens can be refreshed within the `JWT_REFRESH_TTL` window (default 20160 minutes / 14 days) using `POST /api/auth/refresh`.
+
+### Account Approval and Price Visibility
+
+Accounts created via `POST /api/auth/register` start with `approval_status = pending`. An administrator must approve the account before the user can see product prices or place orders.
+
+| User state | Browse catalogue | See prices | Place orders |
+|---|---|---|---|
+| Not logged in | ✅ | ❌ | ❌ |
+| Logged in, pending approval | ✅ | ❌ | ❌ |
+| Logged in, approved | ✅ | ✅ | ✅ |
+
+When prices are not visible, all price fields (`regular_price`, `sale_price`, `current_price`, `on_sale`) are returned as `null` and `prices_visible` is `false`. The app should use this flag to show a "Log in to see prices" prompt.
 
 ---
 
@@ -40,7 +61,7 @@ Protected routes require a JWT bearer token obtained from `POST /api/auth/login`
 | `200` | Success |
 | `201` | Resource created |
 | `401` | Missing, invalid, or expired token |
-| `403` | Forbidden — authenticated but not authorized |
+| `403` | Forbidden — authenticated but not authorized (e.g. account pending approval) |
 | `404` | Resource not found |
 | `422` | Validation error |
 | `500` | Server error |
@@ -82,6 +103,11 @@ Failed validation returns `422` with field-level detail:
 - [Brands](#brands)
   - [GET /api/brands](#get-apibrands)
   - [GET /api/brands/{id}](#get-apibrandsid)
+- [Wishlist](#wishlist)
+  - [GET /api/wishlist](#get-apiwishlist)
+  - [POST /api/wishlist](#post-apiwishlist)
+  - [DELETE /api/wishlist/{id}](#delete-apiwishlistid)
+  - [DELETE /api/wishlist/product/{productId}](#delete-apiwishlistproductproductid)
 - [Orders](#orders)
   - [GET /api/orders](#get-apiorders)
   - [POST /api/orders](#post-apiorders)
@@ -99,7 +125,7 @@ Failed validation returns `422` with field-level detail:
 
 ### POST /api/auth/register
 
-Registers a new user account. No authentication required. Accounts created via this endpoint are set to **pending** status and must be approved by an administrator before the user can log in.
+Registers a new user account. No authentication required. Accounts created via this endpoint are set to **pending** status and must be approved by an administrator before the user can see prices or place orders.
 
 #### Request Body
 
@@ -140,7 +166,7 @@ Registers a new user account. No authentication required. Accounts created via t
 #### Notes
 
 - Email uniqueness is enforced — registering with an existing email returns `422`
-- The account is created with `approval_status = pending`. The user cannot log in until an administrator approves the account
+- The account is created with `approval_status = pending`. The user can browse the catalogue immediately but cannot see prices or place orders until an administrator approves the account
 - Users synced from the ERP via `POST /internal/contacts/sync` are pre-approved and do not need manual approval
 
 ---
@@ -360,11 +386,11 @@ All fields are optional. Only include fields to update.
 
 ### GET /api/products
 
-Returns a paginated list of active products. Supports filtering and sorting. Results are served from Redis cache keyed by a fingerprint of the query parameters.
+Returns a paginated list of active products. Supports filtering and sorting. Results are served from Redis cache keyed by a fingerprint of the query parameters and price visibility.
 
 By default, only top-level and grouped parent products are returned — child products (those that belong to a group) are hidden. Pass `include_children=true` to include them.
 
-**Auth required:** Yes
+**Auth required:** No — publicly accessible. Price fields are only populated for approved users (see [Account Approval and Price Visibility](#account-approval-and-price-visibility)).
 
 #### Query Parameters
 
@@ -381,7 +407,7 @@ By default, only top-level and grouped parent products are returned — child pr
 | `per_page` | integer | `20` | Results per page. Maximum `100`. |
 | `page` | integer | `1` | Page number. |
 
-#### Response `200`
+#### Response `200` — approved user (prices visible)
 
 ```json
 {
@@ -396,6 +422,7 @@ By default, only top-level and grouped parent products are returned — child pr
       "sale_price": "119.99",
       "current_price": "119.99",
       "on_sale": true,
+      "prices_visible": true,
       "in_stock": true,
       "stock_quantity": 50,
       "image": "https://cdn.example.com/products/wh-x1-main.jpg",
@@ -425,19 +452,50 @@ By default, only top-level and grouped parent products are returned — child pr
 }
 ```
 
-**Product object (list shape):**
+#### Response `200` — guest or pending-approval user (prices hidden)
+
+Price fields are `null` and `prices_visible` is `false`. All other fields are identical.
+
+```json
+{
+  "data": [
+    {
+      "id": 12,
+      "name": "Wireless Headphones X1",
+      "slug": "wireless-headphones-x1",
+      "type": "simple",
+      "sku": "WH-X1-BLK",
+      "regular_price": null,
+      "sale_price": null,
+      "current_price": null,
+      "on_sale": null,
+      "prices_visible": false,
+      "in_stock": true,
+      "stock_quantity": 50,
+      "image": "https://cdn.example.com/products/wh-x1-main.jpg",
+      "category": { "id": 3, "name": "Electronics", "slug": "electronics" },
+      "sub_category": null,
+      "brand": { "id": 2, "name": "Acme Corp", "slug": "acme-corp" }
+    }
+  ],
+  "meta": { ... }
+}
+```
+
+**Product object fields:**
 
 | Field | Type | Description |
 |---|---|---|
 | `id` | integer | Gateway product ID. |
 | `name` | string | Product display name. |
-| `slug` | string | URL-safe name. |
-| `type` | string | Product type (e.g. `simple`, `variable`). |
+| `slug` | string | URL-safe identifier, unique across products. |
+| `type` | string | Product type (e.g. `simple`, `variable`, `grouped`). |
 | `sku` | string\|null | Stock keeping unit. |
-| `regular_price` | numeric | Base price. |
-| `sale_price` | numeric\|null | Discounted price. `null` if no active sale. |
-| `current_price` | numeric | The effective price: `sale_price` if set, otherwise `regular_price`. |
-| `on_sale` | boolean | `true` when `sale_price` is set. |
+| `regular_price` | numeric\|null | Base price. `null` when `prices_visible` is `false`. |
+| `sale_price` | numeric\|null | Discounted price. `null` if no active sale, or if `prices_visible` is `false`. |
+| `current_price` | numeric\|null | Effective price: `sale_price` if set, otherwise `regular_price`. `null` when `prices_visible` is `false`. |
+| `on_sale` | boolean\|null | `true` when `sale_price` is active. `null` when `prices_visible` is `false`. |
+| `prices_visible` | boolean | `true` for approved authenticated users; `false` for guests and pending-approval users. Use this flag to show a "Log in to see prices" prompt. |
 | `in_stock` | boolean | Stock availability. |
 | `stock_quantity` | integer\|null | Available units. `null` when `manage_stock` is `false`. |
 | `image` | string\|null | Primary image URL. |
@@ -464,7 +522,7 @@ For grouped products (`type = "grouped"`), the `children` array is always includ
 
 For child products, pass `?with_siblings=1` to include the `parent` object and the `children` array of sibling products.
 
-**Auth required:** Yes
+**Auth required:** No — publicly accessible. Price fields follow the same visibility rules as the list endpoint.
 
 | Path Parameter | Type | Description |
 |---|---|---|
@@ -489,6 +547,7 @@ For child products, pass `?with_siblings=1` to include the `parent` object and t
   "sale_price": null,
   "current_price": "149.99",
   "on_sale": false,
+  "prices_visible": true,
   "in_stock": true,
   "stock_quantity": null,
   "image": "https://cdn.example.com/products/wh-x1-main.jpg",
@@ -511,6 +570,7 @@ For child products, pass `?with_siblings=1` to include the `parent` object and t
       "sale_price": "119.99",
       "current_price": "119.99",
       "on_sale": true,
+      "prices_visible": true,
       "in_stock": true,
       "stock_quantity": 50,
       "image": "https://cdn.example.com/products/wh-x1-blk.jpg",
@@ -535,6 +595,7 @@ For child products, pass `?with_siblings=1` to include the `parent` object and t
   "sale_price": "119.99",
   "current_price": "119.99",
   "on_sale": true,
+  "prices_visible": true,
   "in_stock": true,
   "stock_quantity": 50,
   "image": "https://cdn.example.com/products/wh-x1-blk.jpg",
@@ -568,6 +629,7 @@ For child products, pass `?with_siblings=1` to include the `parent` object and t
       "sale_price": null,
       "current_price": "149.99",
       "on_sale": false,
+      "prices_visible": true,
       "in_stock": true,
       "stock_quantity": 30,
       "image": "https://cdn.example.com/products/wh-x1-wht.jpg",
@@ -609,7 +671,7 @@ For child products, pass `?with_siblings=1` to include the `parent` object and t
 
 Returns all active top-level categories with their active children nested inside. Served from Redis cache.
 
-**Auth required:** Yes
+**Auth required:** No — publicly accessible.
 
 #### Response `200`
 
@@ -647,7 +709,7 @@ Returns all active top-level categories with their active children nested inside
 |---|---|---|
 | `id` | integer | Category ID. |
 | `name` | string | Category display name. |
-| `slug` | string | URL-safe name. |
+| `slug` | string | URL-safe identifier, unique across categories. |
 | `sort_order` | integer | Display order (ascending). |
 | `image` | string\|null | Primary image URL. |
 | `children` | array | Active direct children. Each child: `{ id, name, slug, image }`. Empty array if no children. |
@@ -658,7 +720,7 @@ Returns all active top-level categories with their active children nested inside
 
 Returns full detail for a single active category, including its parent and children. Served from Redis cache.
 
-**Auth required:** Yes
+**Auth required:** No — publicly accessible.
 
 | Path Parameter | Type | Description |
 |---|---|---|
@@ -698,7 +760,7 @@ Returns full detail for a single active category, including its parent and child
 
 Returns all active brands ordered alphabetically. Served from Redis cache.
 
-**Auth required:** Yes
+**Auth required:** No — publicly accessible.
 
 #### Response `200`
 
@@ -719,7 +781,7 @@ Returns all active brands ordered alphabetically. Served from Redis cache.
 |---|---|---|
 | `id` | integer | Brand ID. |
 | `name` | string | Brand display name. |
-| `slug` | string | URL-safe name. |
+| `slug` | string | URL-safe identifier, unique across brands. |
 | `image` | string\|null | Primary brand image URL. |
 
 ---
@@ -728,7 +790,7 @@ Returns all active brands ordered alphabetically. Served from Redis cache.
 
 Returns detail for a single active brand. Served from Redis cache.
 
-**Auth required:** Yes
+**Auth required:** No — publicly accessible.
 
 | Path Parameter | Type | Description |
 |---|---|---|
@@ -750,19 +812,185 @@ Returns detail for a single active brand. Served from Redis cache.
 |---|---|---|
 | `id` | integer | Brand ID. |
 | `name` | string | Brand display name. |
-| `slug` | string | URL-safe name. |
+| `slug` | string | URL-safe identifier, unique across brands. |
 | `description` | string\|null | Brand description. |
 | `image` | string\|null | Primary image URL. |
 
 ---
 
+## Wishlist
+
+A per-user wishlist of saved products. All wishlist endpoints require authentication. A unique constraint prevents the same product from being added twice.
+
+**Auth required:** Yes (all endpoints)
+
+### Wishlist item object
+
+```json
+{
+  "id": 5,
+  "added_at": "2026-05-04T14:30:00+00:00",
+  "product": {
+    "id": 12,
+    "name": "Wireless Headphones X1",
+    "slug": "wireless-headphones-x1",
+    "sku": "WH-X1-BLK",
+    "in_stock": true,
+    "image": "https://cdn.example.com/products/wh-x1-main.jpg"
+  }
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | integer | Wishlist item ID. |
+| `added_at` | string | ISO 8601 timestamp when the product was added. |
+| `product.id` | integer | Gateway product ID. |
+| `product.name` | string | Product display name at time of retrieval. |
+| `product.slug` | string | URL-safe product identifier. |
+| `product.sku` | string\|null | Stock keeping unit. |
+| `product.in_stock` | boolean | Current stock availability. |
+| `product.image` | string\|null | Primary image URL. |
+
+> **Note:** Prices are not included in wishlist responses regardless of approval status. Fetch `GET /api/products/{id}` for full product detail including prices.
+
+---
+
+### GET /api/wishlist
+
+Returns all wishlist items for the authenticated user, newest first. Items whose product has been deactivated are silently excluded.
+
+#### Response `200`
+
+```json
+{
+  "data": [
+    {
+      "id": 5,
+      "added_at": "2026-05-04T14:30:00+00:00",
+      "product": {
+        "id": 12,
+        "name": "Wireless Headphones X1",
+        "slug": "wireless-headphones-x1",
+        "sku": "WH-X1-BLK",
+        "in_stock": true,
+        "image": "https://cdn.example.com/products/wh-x1-main.jpg"
+      }
+    }
+  ]
+}
+```
+
+---
+
+### POST /api/wishlist
+
+Adds a product to the authenticated user's wishlist. The operation is idempotent — if the product is already in the wishlist, `200` is returned instead of `201`.
+
+#### Request Body
+
+```json
+{
+  "product_id": 12
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `product_id` | integer | Yes | ID of an active product to add. |
+
+#### Response `201` — product added
+
+```json
+{
+  "message": "Added to wishlist.",
+  "data": {
+    "id": 5,
+    "product_id": 12
+  }
+}
+```
+
+#### Response `200` — already in wishlist
+
+```json
+{
+  "message": "Already in wishlist.",
+  "data": {
+    "id": 5,
+    "product_id": 12
+  }
+}
+```
+
+**Product not found or inactive response `404`:**
+```json
+{
+  "message": "No query results for model [App\\Models\\Product] 999"
+}
+```
+
+---
+
+### DELETE /api/wishlist/{id}
+
+Removes a wishlist item by its wishlist item ID.
+
+| Path Parameter | Type | Description |
+|---|---|---|
+| `id` | integer | Wishlist item ID. Must belong to the authenticated user. |
+
+#### Response `200`
+
+```json
+{
+  "message": "Removed from wishlist."
+}
+```
+
+**Not found / wrong user response `404`:**
+```json
+{
+  "message": "Wishlist item not found."
+}
+```
+
+---
+
+### DELETE /api/wishlist/product/{productId}
+
+Removes a product from the wishlist by product ID. Convenient for toggle-style UI buttons where you have the product ID but not the wishlist item ID.
+
+| Path Parameter | Type | Description |
+|---|---|---|
+| `productId` | integer | Gateway product ID. Must be in the authenticated user's wishlist. |
+
+#### Response `200`
+
+```json
+{
+  "message": "Removed from wishlist."
+}
+```
+
+**Not in wishlist response `404`:**
+```json
+{
+  "message": "Product not in wishlist."
+}
+```
+
+---
+
 ## Orders
+
+Orders require both authentication **and** an approved account. Unapproved users receive `403`.
 
 ### GET /api/orders
 
 Returns the authenticated user's order history, paginated. Fixed at 15 orders per page, most recent first.
 
-**Auth required:** Yes
+**Auth required:** Yes + approved account
 
 #### Response `200`
 
@@ -808,7 +1036,7 @@ Returns the authenticated user's order history, paginated. Fixed at 15 orders pe
 
 Places a new order. Prices are resolved from current product records at time of placement — the client does not send prices. Returns `201` immediately and dispatches the order to the ERP queue asynchronously.
 
-**Auth required:** Yes
+**Auth required:** Yes + approved account
 
 #### Request Body
 
@@ -920,6 +1148,13 @@ total      = line_total - discount_total + shipping_total + total_tax
 }
 ```
 
+**Unapproved account response `403`:**
+```json
+{
+  "message": "Your account is pending approval."
+}
+```
+
 **Unavailable product response `422`:**
 ```json
 {
@@ -947,7 +1182,7 @@ total      = line_total - discount_total + shipping_total + total_tax
 
 Returns full detail for a single order belonging to the authenticated user, including billing/shipping addresses and line items.
 
-**Auth required:** Yes
+**Auth required:** Yes + approved account
 
 | Path Parameter | Type | Description |
 |---|---|---|
