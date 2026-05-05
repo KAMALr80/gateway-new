@@ -7,6 +7,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\WishlistController;
 use Illuminate\Support\Facades\Route;
 
 // Public
@@ -43,6 +44,12 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/orders/{id}', [OrderController::class, 'show']);
         Route::get('/orders',      [OrderController::class, 'index']);
     });
+
+    // Wishlist
+    Route::get('/wishlist',                          [WishlistController::class, 'index']);
+    Route::post('/wishlist',                         [WishlistController::class, 'store']);
+    Route::delete('/wishlist/{id}',                  [WishlistController::class, 'destroy']);
+    Route::delete('/wishlist/product/{productId}',   [WishlistController::class, 'destroyByProduct']);
 
     // Addresses
     Route::get('/addresses',        [AddressController::class, 'index']);
