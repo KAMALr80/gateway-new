@@ -10,8 +10,6 @@ use App\Models\Product;
 use App\Services\CacheService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
-
 class ProductSyncController extends Controller
 {
     public function __construct(protected CacheService $cache) {}
@@ -65,7 +63,6 @@ class ProductSyncController extends Controller
                         'sub_category_id'  => $subCategory?->id,
                         'brand_id'         => $brand?->id,
                         'name'             => $data['name'],
-                        'slug'             => Str::slug($data['name']),
                         'type'             => $data['type']              ?? 'simple',
                         'description'      => $data['description']       ?? null,
                         'short_description'=> $data['short_description'] ?? null,
