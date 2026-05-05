@@ -16,7 +16,17 @@ Route::prefix('auth')->group(function () {
     Route::post('/refresh',  [AuthController::class, 'refresh']);
 });
 
-// Protected
+// Catalogue — publicly browsable; optional auth used to determine price visibility
+Route::middleware('auth.optional')->group(function () {
+    Route::get('/products',        [ProductController::class, 'index']);
+    Route::get('/products/{id}',   [ProductController::class, 'show']);
+    Route::get('/categories',      [CategoryController::class, 'index']);
+    Route::get('/categories/{id}', [CategoryController::class, 'show']);
+    Route::get('/brands',          [BrandController::class, 'index']);
+    Route::get('/brands/{id}',     [BrandController::class, 'show']);
+});
+
+// Authenticated routes
 Route::middleware('auth:api')->group(function () {
 
     // Auth
@@ -27,22 +37,12 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/users/me',      [UserController::class, 'me']);
     Route::patch('/users/{id}',  [UserController::class, 'update']);
 
-    // Products
-    Route::get('/products',         [ProductController::class, 'index']);
-    Route::get('/products/{id}',    [ProductController::class, 'show']);
-
-    // Categories
-    Route::get('/categories',       [CategoryController::class, 'index']);
-    Route::get('/categories/{id}',  [CategoryController::class, 'show']);
-
-    // Brands
-    Route::get('/brands',      [BrandController::class, 'index']);
-    Route::get('/brands/{id}', [BrandController::class, 'show']);
-
-    // Orders
-    Route::post('/orders',          [OrderController::class, 'store']);
-    Route::get('/orders/{id}',      [OrderController::class, 'show']);
-    Route::get('/orders',           [OrderController::class, 'index']);
+    // Orders — require approval in addition to authentication
+    Route::middleware('require.approved')->group(function () {
+        Route::post('/orders',     [OrderController::class, 'store']);
+        Route::get('/orders/{id}', [OrderController::class, 'show']);
+        Route::get('/orders',      [OrderController::class, 'index']);
+    });
 
     // Addresses
     Route::get('/addresses',        [AddressController::class, 'index']);

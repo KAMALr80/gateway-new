@@ -13,20 +13,26 @@ class ProductController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $showPrices = $this->canSeePrices();
+
         // Build a fingerprint from query params so each
-        // unique filter combination has its own cache entry
-        $fingerprint = md5(json_encode($request->only([
-            'category_id',
-            'sub_category_id',
-            'brand_id',
-            'type',
-            'in_stock',
-            'search',
-            'include_children',
-            'sort',
-            'per_page',
-            'page',
-        ])));
+        // unique filter combination has its own cache entry.
+        // Price visibility is included so guests get their own cached variant.
+        $fingerprint = md5(json_encode(array_merge(
+            $request->only([
+                'category_id',
+                'sub_category_id',
+                'brand_id',
+                'type',
+                'in_stock',
+                'search',
+                'include_children',
+                'sort',
+                'per_page',
+                'page',
+            ]),
+            ['prices' => $showPrices ? '1' : '0']
+        )));
 
         $cached = $this->cache->getProductList($fingerprint);
 
@@ -113,7 +119,7 @@ class ProductController extends Controller
         $products = $query->paginate($perPage);
 
         $data = [
-            'data' => $products->map(fn($p) => $this->formatProduct($p))->values()->all(),
+            'data' => $products->map(fn($p) => $this->formatProduct($p, showPrices: $showPrices))->values()->all(),
             'meta' => [
                 'current_page' => $products->currentPage(),
                 'per_page'     => $products->perPage(),
@@ -129,9 +135,10 @@ class ProductController extends Controller
 
     public function show(Request $request, int $id): JsonResponse
     {
+        $showPrices   = $this->canSeePrices();
         $withSiblings = filter_var($request->input('with_siblings', false), FILTER_VALIDATE_BOOLEAN);
 
-        $cacheKey = $id . ($withSiblings ? ':siblings' : '');
+        $cacheKey = $id . ($withSiblings ? ':siblings' : '') . ($showPrices ? ':p' : ':np');
         $cached   = $this->cache->getProduct($cacheKey);
 
         if ($cached) {
@@ -151,7 +158,7 @@ class ProductController extends Controller
 
         if ($product->type === 'grouped') {
             $kids = $product->children()->with('primaryImage')->get();
-            $groupData['children'] = $kids->map(fn($p) => $this->formatProduct($p))->values()->all();
+            $groupData['children'] = $kids->map(fn($p) => $this->formatProduct($p, showPrices: $showPrices))->values()->all();
         } elseif ($product->parent_id && $withSiblings) {
             $parentProduct = $product->parent()->with('primaryImage')->first();
             $siblings = $parentProduct
@@ -164,42 +171,43 @@ class ProductController extends Controller
                 'slug' => $parentProduct->slug,
             ] : null;
 
-            $groupData['children'] = $siblings->map(fn($p) => $this->formatProduct($p))->values()->all();
+            $groupData['children'] = $siblings->map(fn($p) => $this->formatProduct($p, showPrices: $showPrices))->values()->all();
         }
 
-        $data = $this->formatProduct($product, detailed: true, groupData: $groupData);
+        $data = $this->formatProduct($product, detailed: true, groupData: $groupData, showPrices: $showPrices);
 
         $this->cache->putProduct($cacheKey, $data);
 
         return response()->json($data);
     }
 
-    private function formatProduct(Product $product, bool $detailed = false, array $groupData = []): array
+    private function formatProduct(Product $product, bool $detailed = false, array $groupData = [], bool $showPrices = true): array
     {
         $data = [
-            'id'            => $product->id,
-            'name'          => $product->name,
-            'slug'          => $product->slug,
-            'type'          => $product->type,
-            'sku'           => $product->sku,
-            'regular_price' => $product->regular_price,
-            'sale_price'    => $product->sale_price,
-            'current_price' => $product->current_price,
-            'on_sale'       => $product->isOnSale(),
-            'in_stock'      => $product->in_stock,
-            'stock_quantity'=> $product->manage_stock ? $product->stock_quantity : null,
-            'image'         => $product->primaryImage?->public_url,
-            'category'      => $product->category ? [
+            'id'             => $product->id,
+            'name'           => $product->name,
+            'slug'           => $product->slug,
+            'type'           => $product->type,
+            'sku'            => $product->sku,
+            'regular_price'  => $showPrices ? $product->regular_price  : null,
+            'sale_price'     => $showPrices ? $product->sale_price     : null,
+            'current_price'  => $showPrices ? $product->current_price  : null,
+            'on_sale'        => $showPrices ? $product->isOnSale()     : null,
+            'prices_visible' => $showPrices,
+            'in_stock'       => $product->in_stock,
+            'stock_quantity' => $product->manage_stock ? $product->stock_quantity : null,
+            'image'          => $product->primaryImage?->public_url,
+            'category'       => $product->category ? [
                 'id'   => $product->category->id,
                 'name' => $product->category->name,
                 'slug' => $product->category->slug,
             ] : null,
-            'sub_category'  => $product->subCategory ? [
+            'sub_category'   => $product->subCategory ? [
                 'id'   => $product->subCategory->id,
                 'name' => $product->subCategory->name,
                 'slug' => $product->subCategory->slug,
             ] : null,
-            'brand'         => $product->brand ? [
+            'brand'          => $product->brand ? [
                 'id'   => $product->brand->id,
                 'name' => $product->brand->name,
                 'slug' => $product->brand->slug,
@@ -221,5 +229,12 @@ class ProductController extends Controller
         }
 
         return $data;
+    }
+
+    private function canSeePrices(): bool
+    {
+        $user = auth('api')->user();
+
+        return $user && $user->approval_status === 'approved';
     }
 }
