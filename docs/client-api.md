@@ -91,9 +91,12 @@ Failed validation returns `422` with field-level detail:
   - [POST /api/auth/refresh](#post-apiauthrefresh)
   - [POST /api/auth/validate](#post-apiauthvalidate)
   - [POST /api/auth/logout](#post-apiauthlogout)
+  - [POST /api/auth/forgot-password](#post-apiauthforgot-password)
+  - [POST /api/auth/reset-password](#post-apiauthresset-password)
 - [Users](#users)
   - [GET /api/users/me](#get-apiusersme)
   - [PATCH /api/users/{id}](#patch-apiusersid)
+  - [PATCH /api/users/me/password](#patch-apiusersmeppassword)
 - [Products](#products)
   - [GET /api/products](#get-apiproducts)
   - [GET /api/products/{id}](#get-apiproductsid)
@@ -294,6 +297,84 @@ Invalidates the current token.
 
 ---
 
+### POST /api/auth/forgot-password
+
+Sends a password reset link to the given email address. No authentication required.
+
+To prevent user enumeration, the response is always `200` regardless of whether the email is registered.
+
+#### Request Body
+
+```json
+{
+  "email": "jane.doe@example.com"
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `email` | string | Yes | The email address associated with the account. |
+
+#### Response `200`
+
+```json
+{
+  "message": "If that email address is registered, a password reset link has been sent."
+}
+```
+
+#### Notes
+
+- The reset link is valid for 60 minutes (configured via `config/auth.php` `passwords.users.expire`)
+- The link contains a signed token and the user's email address
+- After clicking the link the mobile app should extract the `token` and `email` from the URL and submit them to `POST /api/auth/reset-password`
+
+---
+
+### POST /api/auth/reset-password
+
+Resets the user's password using the token received by email. No authentication required.
+
+#### Request Body
+
+```json
+{
+  "token": "a1b2c3d4e5...",
+  "email": "jane.doe@example.com",
+  "password": "newSecret123",
+  "password_confirmation": "newSecret123"
+}
+```
+
+| Field | Type | Required | Constraints | Description |
+|---|---|---|---|---|
+| `token` | string | Yes | | Reset token from the email link. |
+| `email` | string | Yes | Valid email | Account email address. |
+| `password` | string | Yes | min 8 characters | New password. |
+| `password_confirmation` | string | Yes | Must match `password` | New password confirmation. |
+
+#### Response `200`
+
+```json
+{
+  "message": "Password has been reset successfully."
+}
+```
+
+**Invalid or expired token response `422`:**
+```json
+{
+  "message": "This password reset link is invalid or has expired."
+}
+```
+
+#### Notes
+
+- After a successful reset the user must log in again via `POST /api/auth/login`
+- The reset token is single-use and is invalidated immediately after a successful reset
+
+---
+
 ## Users
 
 ### GET /api/users/me
@@ -377,6 +458,58 @@ All fields are optional. Only include fields to update.
 ```json
 {
   "message": "Forbidden"
+}
+```
+
+---
+
+### PATCH /api/users/me/password
+
+Changes the authenticated user's password. Requires the current password for verification. Returns a fresh JWT token so the app remains logged in after the change.
+
+**Auth required:** Yes
+
+#### Request Body
+
+```json
+{
+  "current_password": "oldSecret123",
+  "password": "newSecret456",
+  "password_confirmation": "newSecret456"
+}
+```
+
+| Field | Type | Required | Constraints | Description |
+|---|---|---|---|---|
+| `current_password` | string | Yes | | The user's existing password. |
+| `password` | string | Yes | min 8 characters, different from current | New password. |
+| `password_confirmation` | string | Yes | Must match `password` | New password confirmation. |
+
+#### Response `200`
+
+```json
+{
+  "message": "Password changed successfully.",
+  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+  "token_type": "bearer",
+  "expires_in": 86400
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `message` | string | Confirmation message. |
+| `access_token` | string | New JWT — replace the current token immediately. The old token is invalidated. |
+| `token_type` | string | Always `"bearer"`. |
+| `expires_in` | integer | Token lifetime in seconds. |
+
+**Wrong current password response `422`:**
+```json
+{
+  "message": "The current password is incorrect.",
+  "errors": {
+    "current_password": ["The current password is incorrect."]
+  }
 }
 ```
 

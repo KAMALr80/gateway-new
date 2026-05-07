@@ -12,9 +12,11 @@ use Illuminate\Support\Facades\Route;
 
 // Public
 Route::prefix('auth')->group(function () {
-    Route::post('/register', [AuthController::class, 'register']);
-    Route::post('/login',    [AuthController::class, 'login']);
-    Route::post('/refresh',  [AuthController::class, 'refresh']);
+    Route::post('/register',        [AuthController::class, 'register']);
+    Route::post('/login',           [AuthController::class, 'login']);
+    Route::post('/refresh',         [AuthController::class, 'refresh']);
+    Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+    Route::post('/reset-password',  [AuthController::class, 'resetPassword']);
 });
 
 // Catalogue — publicly browsable; optional auth used to determine price visibility
@@ -35,8 +37,9 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/auth/logout',   [AuthController::class, 'logout']);
 
     // User
-    Route::get('/users/me',      [UserController::class, 'me']);
-    Route::patch('/users/{id}',  [UserController::class, 'update']);
+    Route::get('/users/me',             [UserController::class, 'me']);
+    Route::patch('/users/{id}',         [UserController::class, 'update']);
+    Route::patch('/users/me/password',  [UserController::class, 'changePassword']);
 
     // Orders — require approval in addition to authentication
     Route::middleware('require.approved')->group(function () {
