@@ -671,6 +671,8 @@ For child products, pass `?with_siblings=1` to include the `parent` object and t
 
 Returns all active top-level categories with their active children nested inside. Served from Redis cache.
 
+This endpoint returns all results in a single response and is **not paginated**. There is no `meta` object in the response.
+
 **Auth required:** No — publicly accessible.
 
 #### Response `200`
@@ -760,6 +762,8 @@ Returns full detail for a single active category, including its parent and child
 
 Returns all active brands ordered alphabetically. Served from Redis cache.
 
+This endpoint returns all results in a single response and is **not paginated**. There is no `meta` object in the response.
+
 **Auth required:** No — publicly accessible.
 
 #### Response `200`
@@ -776,6 +780,8 @@ Returns all active brands ordered alphabetically. Served from Redis cache.
   ]
 }
 ```
+
+**Brand object fields:**
 
 | Field | Type | Description |
 |---|---|---|
