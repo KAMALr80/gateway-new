@@ -6,9 +6,11 @@ use App\Http\Requests\OrderRequest;
 use App\Jobs\SendOrderToErp;
 use App\Models\Order;
 use App\Models\Product;
+use App\Services\SequenceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class OrderController extends Controller
@@ -78,13 +80,16 @@ class OrderController extends Controller
         $totalTax       = $data['total_tax']        ?? 0;
         $total          = $lineTotal - $discountTotal + $shippingTotal + $totalTax;
 
+        $sequence = app(SequenceService::class);
+        $invoiceNo = 'ORD' . str_pad($sequence->next('invoice_no'), 6, '0', STR_PAD_LEFT);
+
         try {
             $order = DB::transaction(function () use (
-                $data, $user, $lineItems,
+                $invoiceNo, $data, $user, $lineItems,
                 $lineTotal, $discountTotal, $shippingTotal, $totalTax, $total
             ) {
                 $order = Order::create([
-                    'invoice_no'           => (string) Order::max('id') + 1,
+                    'invoice_no'           => $invoiceNo,
                     'order_key'            => 'order_' . Str::random(13),
                     'created_via'          => 'rest-api',
                     'transaction_date'     => now(),
@@ -139,6 +144,12 @@ class OrderController extends Controller
             ], 201);
 
         } catch (\Throwable $e) {
+            Log::emergency('Failed to place order', [
+                'error' => $e->getMessage(),
+                'stack' => $e->getTraceAsString(),
+                'user_id' => auth('api')->id(),
+                'request_data' => $data,
+            ]);
             return response()->json(['message' => 'Failed to place order'], 500);
         }
     }

@@ -122,6 +122,7 @@ class AuthController extends Controller
             'phone'          => $user->phone,
             'address'        => $user->address,
             'erp_contact_id' => $user->erp_contact_id,
+            'approval_status' => $user->approval_status,
         ];
     }
 }

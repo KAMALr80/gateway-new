@@ -21,6 +21,7 @@ class UserController extends Controller
             'address'        => $user->address,
             'erp_contact_id' => $user->erp_contact_id,
             'orders_count'   => $user->orders->count(),
+            'approval_status' => $user->approval_status,
         ]);
     }
 
@@ -43,6 +44,7 @@ class UserController extends Controller
                 'email'   => $authUser->email,
                 'phone'   => $authUser->phone,
                 'address' => $authUser->address,
+                'approval_status' => $authUser->approval_status,
             ],
         ]);
     }
