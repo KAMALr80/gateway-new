@@ -171,6 +171,49 @@ export interface AdminOrder {
     updated_at: string;
 }
 
+export type HomepageSectionType = 'featured_category' | 'banner' | 'hero' | 'product_carousel' | 'brand_showcase';
+
+export interface HomepageSectionSettings {
+    // featured_category
+    category_id?: number;
+    product_limit?: number;
+    // banner / hero
+    image_url?: string;
+    link_url?: string;
+    subtitle?: string;
+    // hero
+    cta_text?: string;
+    cta_url?: string;
+    // product_carousel
+    filter?: 'new' | 'sale' | 'featured';
+    limit?: number;
+    // brand_showcase
+    brand_ids?: number[];
+}
+
+export interface HomepageSection {
+    id: number;
+    homepage_config_id: number;
+    type: HomepageSectionType;
+    title: string;
+    sort_order: number;
+    is_active: boolean;
+    settings: HomepageSectionSettings;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface HomepageConfig {
+    id: number;
+    client_key: string;
+    label: string;
+    is_active: boolean;
+    sections?: HomepageSection[];
+    sections_count?: number;
+    created_at: string;
+    updated_at: string;
+}
+
 export interface PaginatedMeta {
     current_page: number;
     from: number | null;

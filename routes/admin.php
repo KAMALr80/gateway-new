@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\BrandController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\HomepageConfigController;
 use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\UserController;
@@ -30,4 +31,15 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'verified', 'admin']
 
     Route::get('orders', [OrderController::class, 'index'])->name('orders.index');
     Route::get('orders/{order}', [OrderController::class, 'show'])->name('orders.show');
+
+    Route::get('homepage', [HomepageConfigController::class, 'index'])->name('homepage.index');
+    Route::get('homepage/create', [HomepageConfigController::class, 'create'])->name('homepage.create');
+    Route::post('homepage', [HomepageConfigController::class, 'store'])->name('homepage.store');
+    Route::get('homepage/{config}/edit', [HomepageConfigController::class, 'edit'])->name('homepage.edit');
+    Route::patch('homepage/{config}', [HomepageConfigController::class, 'update'])->name('homepage.update');
+    Route::delete('homepage/{config}', [HomepageConfigController::class, 'destroy'])->name('homepage.destroy');
+    Route::post('homepage/{config}/sections/reorder', [HomepageConfigController::class, 'reorderSections'])->name('homepage.sections.reorder');
+    Route::post('homepage/{config}/sections', [HomepageConfigController::class, 'storeSection'])->name('homepage.sections.store');
+    Route::patch('homepage/{config}/sections/{section}', [HomepageConfigController::class, 'updateSection'])->name('homepage.sections.update');
+    Route::delete('homepage/{config}/sections/{section}', [HomepageConfigController::class, 'destroySection'])->name('homepage.sections.destroy');
 });
