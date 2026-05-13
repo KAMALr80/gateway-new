@@ -1,12 +1,12 @@
 import { Head, Link } from '@inertiajs/react';
+import { PageHeader } from '@/components/admin/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PageHeader } from '@/components/admin/page-header';
 import AppLayout from '@/layouts/app-layout';
 import adminRoutes from '@/routes/admin';
-import type { AdminBrand } from '@/types/admin';
 import type { BreadcrumbItem } from '@/types';
+import type { AdminBrand } from '@/types/admin';
 
 export default function BrandShow({ brand }: { brand: AdminBrand }) {
     const breadcrumbs: BreadcrumbItem[] = [

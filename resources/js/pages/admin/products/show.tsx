@@ -1,14 +1,14 @@
 import { Head, Link } from '@inertiajs/react';
 import { Heart } from 'lucide-react';
+import { PageHeader } from '@/components/admin/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { PageHeader } from '@/components/admin/page-header';
 import AppLayout from '@/layouts/app-layout';
 import adminRoutes from '@/routes/admin';
-import type { AdminProduct } from '@/types/admin';
 import type { BreadcrumbItem } from '@/types';
+import type { AdminProduct } from '@/types/admin';
 
 function typeBadge(type: string) {
     const map: Record<string, string> = {
@@ -17,6 +17,7 @@ function typeBadge(type: string) {
         grouped: 'bg-orange-100 text-orange-800 border-orange-200',
         digital: 'bg-teal-100 text-teal-800 border-teal-200',
     };
+
     return <Badge className={map[type] ?? ''}>{type}</Badge>;
 }
 

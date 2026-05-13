@@ -1,15 +1,15 @@
 import { Head, Link, router } from '@inertiajs/react';
+import { DataTablePagination } from '@/components/admin/data-table';
+import { PageHeader } from '@/components/admin/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DataTablePagination } from '@/components/admin/data-table';
-import { PageHeader } from '@/components/admin/page-header';
 import AppLayout from '@/layouts/app-layout';
 import adminRoutes from '@/routes/admin';
-import type { AdminOrder, Paginated } from '@/types/admin';
 import type { BreadcrumbItem } from '@/types';
+import type { AdminOrder, Paginated } from '@/types/admin';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Admin', href: adminRoutes.dashboard().url },
@@ -35,11 +35,15 @@ function statusBadge(status: string) {
         cancelled: 'bg-red-100 text-red-800 border-red-200',
         completed: 'bg-green-100 text-green-800 border-green-200',
     };
+
     return <Badge className={map[status] ?? ''}>{status}</Badge>;
 }
 
 function paymentBadge(status: string) {
-    if (status === 'paid') return <Badge className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400">Paid</Badge>;
+    if (status === 'paid') {
+return <Badge className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400">Paid</Badge>;
+}
+
     return <Badge variant="secondary">{status}</Badge>;
 }
 
@@ -50,6 +54,7 @@ function syncBadge(status: string) {
         syncing: 'bg-blue-100 text-blue-800 border-blue-200',
         failed: 'bg-red-100 text-red-800 border-red-200',
     };
+
     return <Badge className={`text-xs ${map[status] ?? ''}`}>{status}</Badge>;
 }
 

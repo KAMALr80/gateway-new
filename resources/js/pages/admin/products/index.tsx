@@ -1,15 +1,15 @@
 import { Head, Link, router } from '@inertiajs/react';
+import { DataTablePagination } from '@/components/admin/data-table';
+import { PageHeader } from '@/components/admin/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DataTablePagination } from '@/components/admin/data-table';
-import { PageHeader } from '@/components/admin/page-header';
 import AppLayout from '@/layouts/app-layout';
 import adminRoutes from '@/routes/admin';
-import type { AdminProduct, AdminCategory, AdminBrand, Paginated } from '@/types/admin';
 import type { BreadcrumbItem } from '@/types';
+import type { AdminProduct, Paginated } from '@/types/admin';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Admin', href: adminRoutes.dashboard().url },
@@ -33,6 +33,7 @@ function typeBadge(type: string) {
         grouped: 'bg-orange-100 text-orange-800 border-orange-200',
         digital: 'bg-teal-100 text-teal-800 border-teal-200',
     };
+
     return <Badge className={map[type] ?? ''}>{type}</Badge>;
 }
 

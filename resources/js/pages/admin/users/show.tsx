@@ -1,19 +1,25 @@
 import { Head, Link, useForm } from '@inertiajs/react';
+import { PageHeader } from '@/components/admin/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { PageHeader } from '@/components/admin/page-header';
 import AppLayout from '@/layouts/app-layout';
 import adminRoutes from '@/routes/admin';
-import type { AdminUser, AdminOrder } from '@/types/admin';
 import type { BreadcrumbItem } from '@/types';
+import type { AdminUser, AdminOrder } from '@/types/admin';
 
 function approvalBadge(status: string) {
-    if (status === 'approved') return <Badge className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400">Approved</Badge>;
-    if (status === 'rejected') return <Badge variant="destructive">Rejected</Badge>;
+    if (status === 'approved') {
+return <Badge className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400">Approved</Badge>;
+}
+
+    if (status === 'rejected') {
+return <Badge variant="destructive">Rejected</Badge>;
+}
+
     return <Badge variant="secondary">Pending</Badge>;
 }
 
@@ -24,6 +30,7 @@ function orderStatusBadge(status: string) {
         completed: 'bg-green-100 text-green-800 border-green-200',
         cancelled: 'bg-red-100 text-red-800 border-red-200',
     };
+
     return <Badge className={map[status] ?? ''}>{status}</Badge>;
 }
 

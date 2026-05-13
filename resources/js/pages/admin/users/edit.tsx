@@ -1,15 +1,15 @@
 import { Head, useForm } from '@inertiajs/react';
+import { PageHeader } from '@/components/admin/page-header';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PageHeader } from '@/components/admin/page-header';
 import AppLayout from '@/layouts/app-layout';
 import adminRoutes from '@/routes/admin';
-import type { AdminUser } from '@/types/admin';
 import type { BreadcrumbItem } from '@/types';
+import type { AdminUser } from '@/types/admin';
 
 export default function UserEdit({ user }: { user: AdminUser }) {
     const breadcrumbs: BreadcrumbItem[] = [
