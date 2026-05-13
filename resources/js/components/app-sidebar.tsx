@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { BookOpen, FolderGit2, LayoutGrid, Package, ShoppingCart, Tag, Layers, Users } from 'lucide-react';
+import { BookOpen, FolderGit2, LayoutGrid, LayoutTemplate, Package, ShoppingCart, Tag, Layers, Users } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -47,6 +47,7 @@ const adminNavItems: NavItem[] = [
     { title: 'Products', href: adminRoutes.products.index(), icon: Package },
     { title: 'Categories', href: adminRoutes.categories.index(), icon: Layers },
     { title: 'Brands', href: adminRoutes.brands.index(), icon: Tag },
+    { title: 'Homepage', href: adminRoutes.homepage.index(), icon: LayoutTemplate },
 ];
 
 function AdminNav({ items }: { items: NavItem[] }) {
