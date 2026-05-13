@@ -34,6 +34,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'internal.key'    => \App\Http\Middleware\InternalApiKey::class,
             'auth.optional'   => \App\Http\Middleware\OptionalAuth::class,
             'require.approved' => \App\Http\Middleware\RequireApproved::class,
+            'admin'           => \App\Http\Middleware\AdminMiddleware::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
