@@ -42,7 +42,7 @@ function sectionBadgeColor(type: HomepageSectionType) {
     return map[type] ?? '';
 }
 
-function settingsSummary(section: HomepageSection, categories: Props['categories'], brands: Props['brands']): string {
+function settingsSummary(section: HomepageSection, categories: Props['categories']): string {
     const s = section.settings ?? {};
     switch (section.type) {
         case 'featured_category': {
@@ -418,7 +418,7 @@ export default function HomepageEdit({ config, categories, brands }: Props) {
                                         </TableCell>
                                         <TableCell className="font-medium">{section.title}</TableCell>
                                         <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
-                                            {settingsSummary(section, categories, brands)}
+                                            {settingsSummary(section, categories)}
                                         </TableCell>
                                         <TableCell>
                                             {section.is_active ? (
