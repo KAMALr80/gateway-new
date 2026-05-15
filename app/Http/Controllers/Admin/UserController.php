@@ -36,7 +36,7 @@ class UserController extends Controller
         $users = $query->latest()->paginate($perPage)->withQueryString();
 
         return Inertia::render('admin/users/index', [
-            'users'   => $users,
+            'users'   => $this->paginatedData($users),
             'filters' => $request->only(['search', 'approval_status', 'is_admin', 'per_page']),
         ]);
     }

@@ -29,7 +29,7 @@ class BrandController extends Controller
         $brands = $query->with('primaryImage')->orderBy('name')->paginate($perPage)->withQueryString();
 
         return Inertia::render('admin/brands/index', [
-            'brands'  => $brands,
+            'brands'  => $this->paginatedData($brands),
             'filters' => $request->only(['search', 'is_active', 'per_page']),
         ]);
     }

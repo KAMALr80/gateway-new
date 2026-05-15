@@ -54,7 +54,7 @@ class ProductController extends Controller
         $brands = Brand::orderBy('name')->get(['id', 'name']);
 
         return Inertia::render('admin/products/index', [
-            'products'   => $products,
+            'products'   => $this->paginatedData($products),
             'categories' => $categories,
             'brands'     => $brands,
             'filters'    => $request->only(['search', 'category_id', 'brand_id', 'type', 'in_stock', 'is_active', 'per_page']),

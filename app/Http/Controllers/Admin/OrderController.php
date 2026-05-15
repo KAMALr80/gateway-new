@@ -47,7 +47,7 @@ class OrderController extends Controller
         $orders = $query->latest()->paginate($perPage)->withQueryString();
 
         return Inertia::render('admin/orders/index', [
-            'orders'  => $orders,
+            'orders'  => $this->paginatedData($orders),
             'filters' => $request->only(['search', 'status', 'payment_status', 'sync_status', 'date_from', 'date_to', 'per_page']),
         ]);
     }

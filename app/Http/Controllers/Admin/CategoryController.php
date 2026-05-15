@@ -39,7 +39,7 @@ class CategoryController extends Controller
         $parentCategories = Category::whereNull('parent_id')->orderBy('name')->get(['id', 'name']);
 
         return Inertia::render('admin/categories/index', [
-            'categories'       => $categories,
+            'categories'       => $this->paginatedData($categories),
             'parentCategories' => $parentCategories,
             'filters'          => $request->only(['search', 'parent_id', 'is_active', 'per_page']),
         ]);
