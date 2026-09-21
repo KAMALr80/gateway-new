@@ -1,0 +1,252 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Product;
+use App\Services\CacheService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+
+class ProductController extends Controller
+{
+    public function __construct(protected CacheService $cache) {}
+
+    public function index(Request $request): JsonResponse
+    {
+        $showPrices = $this->canSeePrices();
+
+        // Build a fingerprint from query params so each
+        // unique filter combination has its own cache entry.
+        // Price visibility is included so guests get their own cached variant.
+        $fingerprint = md5(json_encode(array_merge(
+            $request->only([
+                'category_id',
+                'sub_category_id',
+                'brand_id',
+                'type',
+                'in_stock',
+                'search',
+                'include_children',
+                'sort',
+                'per_page',
+                'page',
+                'ids',
+            ]),
+            ['prices' => $showPrices ? '1' : '0']
+        )));
+
+        $cached = $this->cache->getProductList($fingerprint);
+
+        if ($cached) {
+            return response()->json($cached);
+        }
+
+        $query = Product::query()
+            ->with(['category', 'subCategory', 'brand', 'primaryImage'])
+            ->where('is_active', true);
+
+        // Filters
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->category_id);
+        }
+
+        if ($request->filled('sub_category_id')) {
+            $query->where('sub_category_id', $request->sub_category_id);
+        }
+
+        if ($request->filled('brand_id')) {
+            $query->where('brand_id', $request->brand_id);
+        }
+
+        $requestedIds = collect(explode(',', (string) $request->input('ids', '')))
+            ->filter(fn ($id) => ctype_digit($id))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->take(200)
+            ->values();
+        if ($requestedIds->isNotEmpty()) {
+            $query->whereIn('id', $requestedIds);
+        }
+
+        if ($request->filled('type')) {
+            $query->where('type', $request->type);
+        }
+
+        if ($request->boolean('in_stock')) {
+            $query->where('in_stock', true);
+        }
+
+        $includeChildren = filter_var($request->input('include_children', false), FILTER_VALIDATE_BOOLEAN);
+        $search          = $request->filled('search') ? $request->search : null;
+
+        if (!$includeChildren) {
+            if ($search) {
+                // Show top-level products that match the search, OR grouped parents
+                // whose children match — so a child hit always surfaces the parent.
+                $query->where(function ($outerQ) use ($search) {
+                    $outerQ->where(function ($q) use ($search) {
+                        $q->whereNull('parent_id')
+                          ->where(function ($sq) use ($search) {
+                              $sq->where('name', 'like', "%{$search}%")
+                                 ->orWhere('sku', 'like', "%{$search}%")
+                                 ->orWhere('description', 'like', "%{$search}%");
+                          });
+                    })
+                    ->orWhereIn('id', function ($sub) use ($search) {
+                        $sub->select('parent_id')
+                            ->from('products')
+                            ->whereNotNull('parent_id')
+                            ->where(function ($sq) use ($search) {
+                                $sq->where('name', 'like', "%{$search}%")
+                                   ->orWhere('sku', 'like', "%{$search}%")
+                                   ->orWhere('description', 'like', "%{$search}%");
+                            });
+                    });
+                });
+                $search = null; // handled above, skip the block below
+            } else {
+                $query->whereNull('parent_id');
+            }
+        }
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('sku', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        // Sorting
+        match ($request->get('sort', 'default')) {
+            'price_asc'  => $query->orderByRaw('COALESCE(sale_price, regular_price) ASC'),
+            'price_desc' => $query->orderByRaw('COALESCE(sale_price, regular_price) DESC'),
+            'newest'     => $query->orderBy('created_at', 'desc'),
+            'name_asc'   => $query->orderBy('name', 'asc'),
+            default      => $query->orderBy('name', 'asc'),
+        };
+
+        $perPageCap = $requestedIds->isNotEmpty() ? 200 : 100;
+        $perPage  = min((int) $request->get('per_page', 20), $perPageCap);
+        $products = $query->paginate($perPage);
+
+        $data = [
+            'data' => $products->map(fn($p) => $this->formatProduct($p, showPrices: $showPrices))->values()->all(),
+            'meta' => [
+                'current_page' => $products->currentPage(),
+                'per_page'     => $products->perPage(),
+                'total'        => $products->total(),
+                'last_page'    => $products->lastPage(),
+            ],
+        ];
+
+        $this->cache->putProductList($fingerprint, $data);
+
+        return response()->json($data);
+    }
+
+    public function show(Request $request, int $id): JsonResponse
+    {
+        $showPrices   = $this->canSeePrices();
+        $withSiblings = filter_var($request->input('with_siblings', false), FILTER_VALIDATE_BOOLEAN);
+
+        $cacheKey = $id . ($withSiblings ? ':siblings' : '') . ($showPrices ? ':p' : ':np');
+        $cached   = $this->cache->getProduct($cacheKey);
+
+        if ($cached) {
+            return response()->json($cached);
+        }
+
+        $product = Product::with([
+            'category',
+            'subCategory',
+            'brand',
+            'media',
+        ])
+        ->where('is_active', true)
+        ->findOrFail($id);
+
+        $groupData = ['parent' => null, 'children' => []];
+
+        if ($product->type === 'grouped') {
+            $kids = $product->children()->with('primaryImage')->get();
+            $groupData['children'] = $kids->map(fn($p) => $this->formatProduct($p, showPrices: $showPrices))->values()->all();
+        } elseif ($product->parent_id && $withSiblings) {
+            $parentProduct = $product->parent()->with('primaryImage')->first();
+            $siblings = $parentProduct
+                ? $parentProduct->children()->with('primaryImage')->where('id', '!=', $product->id)->get()
+                : collect();
+
+            $groupData['parent'] = $parentProduct ? [
+                'id'   => $parentProduct->id,
+                'name' => $parentProduct->name,
+                'slug' => $parentProduct->slug,
+            ] : null;
+
+            $groupData['children'] = $siblings->map(fn($p) => $this->formatProduct($p, showPrices: $showPrices))->values()->all();
+        }
+
+        $data = $this->formatProduct($product, detailed: true, groupData: $groupData, showPrices: $showPrices);
+
+        $this->cache->putProduct($cacheKey, $data);
+
+        return response()->json($data);
+    }
+
+    private function formatProduct(Product $product, bool $detailed = false, array $groupData = [], bool $showPrices = true): array
+    {
+        $data = [
+            'id'             => $product->id,
+            'name'           => $product->name,
+            'slug'           => $product->slug,
+            'type'           => $product->type,
+            'sku'            => $product->sku,
+            'regular_price'  => $showPrices ? $product->regular_price  : null,
+            'sale_price'     => $showPrices ? $product->sale_price     : null,
+            'current_price'  => $showPrices ? $product->current_price  : null,
+            'on_sale'        => $showPrices ? $product->isOnSale()     : null,
+            'prices_visible' => $showPrices,
+            'in_stock'       => $product->in_stock,
+            'stock_quantity' => $product->manage_stock ? $product->stock_quantity : null,
+            'image'          => $product->primaryImage?->public_url,
+            'category'       => $product->category ? [
+                'id'   => $product->category->id,
+                'name' => $product->category->name,
+                'slug' => $product->category->slug,
+            ] : null,
+            'sub_category'   => $product->subCategory ? [
+                'id'   => $product->subCategory->id,
+                'name' => $product->subCategory->name,
+                'slug' => $product->subCategory->slug,
+            ] : null,
+            'brand'          => $product->brand ? [
+                'id'   => $product->brand->id,
+                'name' => $product->brand->name,
+                'slug' => $product->brand->slug,
+            ] : null,
+        ];
+
+        if ($detailed) {
+            $data['description']       = $product->description;
+            $data['short_description'] = $product->short_description;
+            $data['attributes']        = $product->attributes;
+            $data['images']            = $product->media->map(fn($m) => [
+                'url'        => $m->public_url,
+                'thumbnail'  => $m->thumbnail_url,
+                'alt'        => $m->alt,
+                'is_primary' => $m->is_primary,
+            ])->values()->all();
+            $data['parent']   = $groupData['parent']   ?? null;
+            $data['children'] = $groupData['children'] ?? [];
+        }
+
+        return $data;
+    }
+
+    private function canSeePrices(): bool
+    {
+        $user = auth('api')->user();
+
+        return $user && $user->approval_status === 'approved';
+    }
+}
