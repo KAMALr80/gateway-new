@@ -1,5 +1,15 @@
 import { Link, usePage } from '@inertiajs/react';
-import { BookOpen, FolderGit2, LayoutGrid, LayoutTemplate } from 'lucide-react';
+import {
+    BookOpen,
+    FolderGit2,
+    Layers,
+    LayoutGrid,
+    LayoutTemplate,
+    Package,
+    ShoppingCart,
+    Tag,
+    Users,
+} from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -16,14 +26,13 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { useCurrentUrl } from '@/hooks/use-current-url';
-import { dashboard } from '@/routes';
 import adminRoutes from '@/routes/admin';
 import type { NavItem } from '@/types';
 
 const mainNavItems: NavItem[] = [
     {
         title: 'Dashboard',
-        href: dashboard(),
+        href: adminRoutes.dashboard(),
         icon: LayoutGrid,
     },
 ];
@@ -42,6 +51,11 @@ const footerNavItems: NavItem[] = [
 ];
 
 const adminNavItems: NavItem[] = [
+    { title: 'Users', href: adminRoutes.users.index(), icon: Users },
+    { title: 'Orders', href: adminRoutes.orders.index(), icon: ShoppingCart },
+    { title: 'Products', href: adminRoutes.products.index(), icon: Package },
+    { title: 'Categories', href: adminRoutes.categories.index(), icon: Layers },
+    { title: 'Brands', href: adminRoutes.brands.index(), icon: Tag },
     { title: 'Homepage', href: adminRoutes.homepage.index(), icon: LayoutTemplate },
 ];
 
@@ -76,7 +90,7 @@ export function AppSidebar() {
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
-                            <Link href={dashboard()} prefetch>
+                            <Link href={adminRoutes.dashboard()} prefetch>
                                 <AppLogo />
                             </Link>
                         </SidebarMenuButton>

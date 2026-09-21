@@ -65,56 +65,56 @@ export default function ProductsIndex({
                         defaultValue={filters.search ?? ''}
                         onChange={(e) => applyFilter('search', e.target.value)}
                     />
-                    <Select value={filters.category_id ?? ''} onValueChange={(v) => applyFilter('category_id', v)}>
+                    <Select value={filters.category_id || '__all__'} onValueChange={(v) => applyFilter('category_id', v === '__all__' ? '' : v)}>
                         <SelectTrigger className="h-9 w-44">
                             <SelectValue placeholder="Category" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="">All categories</SelectItem>
+                            <SelectItem value="__all__">All categories</SelectItem>
                             {categories.map((c) => (
                                 <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
-                    <Select value={filters.brand_id ?? ''} onValueChange={(v) => applyFilter('brand_id', v)}>
+                    <Select value={filters.brand_id || '__all__'} onValueChange={(v) => applyFilter('brand_id', v === '__all__' ? '' : v)}>
                         <SelectTrigger className="h-9 w-40">
                             <SelectValue placeholder="Brand" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="">All brands</SelectItem>
+                            <SelectItem value="__all__">All brands</SelectItem>
                             {brands.map((b) => (
                                 <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
-                    <Select value={filters.type ?? ''} onValueChange={(v) => applyFilter('type', v)}>
+                    <Select value={filters.type || '__all__'} onValueChange={(v) => applyFilter('type', v === '__all__' ? '' : v)}>
                         <SelectTrigger className="h-9 w-36">
                             <SelectValue placeholder="Type" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="">All types</SelectItem>
+                            <SelectItem value="__all__">All types</SelectItem>
                             <SelectItem value="simple">Simple</SelectItem>
                             <SelectItem value="variable">Variable</SelectItem>
                             <SelectItem value="grouped">Grouped</SelectItem>
                             <SelectItem value="digital">Digital</SelectItem>
                         </SelectContent>
                     </Select>
-                    <Select value={filters.in_stock ?? ''} onValueChange={(v) => applyFilter('in_stock', v)}>
+                    <Select value={filters.in_stock || '__all__'} onValueChange={(v) => applyFilter('in_stock', v === '__all__' ? '' : v)}>
                         <SelectTrigger className="h-9 w-36">
                             <SelectValue placeholder="Stock" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="">Any stock</SelectItem>
+                            <SelectItem value="__all__">Any stock</SelectItem>
                             <SelectItem value="true">In stock</SelectItem>
                             <SelectItem value="false">Out of stock</SelectItem>
                         </SelectContent>
                     </Select>
-                    <Select value={filters.is_active ?? ''} onValueChange={(v) => applyFilter('is_active', v)}>
+                    <Select value={filters.is_active || '__all__'} onValueChange={(v) => applyFilter('is_active', v === '__all__' ? '' : v)}>
                         <SelectTrigger className="h-9 w-32">
                             <SelectValue placeholder="Status" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="">All</SelectItem>
+                            <SelectItem value="__all__">All</SelectItem>
                             <SelectItem value="true">Active</SelectItem>
                             <SelectItem value="false">Inactive</SelectItem>
                         </SelectContent>

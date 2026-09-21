@@ -65,23 +65,23 @@ export default function UsersIndex({ users, filters }: { users: Paginated<AdminU
                         defaultValue={filters.search ?? ''}
                         onChange={(e) => applyFilter('search', e.target.value)}
                     />
-                    <Select value={filters.approval_status ?? ''} onValueChange={(v) => applyFilter('approval_status', v)}>
+                    <Select value={filters.approval_status || '__all__'} onValueChange={(v) => applyFilter('approval_status', v === '__all__' ? '' : v)}>
                         <SelectTrigger className="h-9 w-40">
                             <SelectValue placeholder="Approval status" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="">All statuses</SelectItem>
+                            <SelectItem value="__all__">All statuses</SelectItem>
                             <SelectItem value="pending">Pending</SelectItem>
                             <SelectItem value="approved">Approved</SelectItem>
                             <SelectItem value="rejected">Rejected</SelectItem>
                         </SelectContent>
                     </Select>
-                    <Select value={filters.is_admin ?? ''} onValueChange={(v) => applyFilter('is_admin', v)}>
+                    <Select value={filters.is_admin || '__all__'} onValueChange={(v) => applyFilter('is_admin', v === '__all__' ? '' : v)}>
                         <SelectTrigger className="h-9 w-36">
                             <SelectValue placeholder="Role" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="">All roles</SelectItem>
+                            <SelectItem value="__all__">All roles</SelectItem>
                             <SelectItem value="true">Admin</SelectItem>
                             <SelectItem value="false">User</SelectItem>
                         </SelectContent>

@@ -36,12 +36,12 @@ export default function BrandsIndex({ brands, filters }: { brands: Paginated<Adm
                         defaultValue={filters.search ?? ''}
                         onChange={(e) => applyFilter('search', e.target.value)}
                     />
-                    <Select value={filters.is_active ?? ''} onValueChange={(v) => applyFilter('is_active', v)}>
+                    <Select value={filters.is_active || '__all__'} onValueChange={(v) => applyFilter('is_active', v === '__all__' ? '' : v)}>
                         <SelectTrigger className="h-9 w-36">
                             <SelectValue placeholder="Active status" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="">All</SelectItem>
+                            <SelectItem value="__all__">All</SelectItem>
                             <SelectItem value="true">Active</SelectItem>
                             <SelectItem value="false">Inactive</SelectItem>
                         </SelectContent>

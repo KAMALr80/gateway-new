@@ -76,12 +76,12 @@ export default function OrdersIndex({ orders, filters }: { orders: Paginated<Adm
                         defaultValue={filters.search ?? ''}
                         onChange={(e) => applyFilter('search', e.target.value)}
                     />
-                    <Select value={filters.status ?? ''} onValueChange={(v) => applyFilter('status', v)}>
+                    <Select value={filters.status || '__all__'} onValueChange={(v) => applyFilter('status', v === '__all__' ? '' : v)}>
                         <SelectTrigger className="h-9 w-36">
                             <SelectValue placeholder="Order status" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="">All statuses</SelectItem>
+                            <SelectItem value="__all__">All statuses</SelectItem>
                             <SelectItem value="pending">Pending</SelectItem>
                             <SelectItem value="processing">Processing</SelectItem>
                             <SelectItem value="shipped">Shipped</SelectItem>
@@ -90,22 +90,22 @@ export default function OrdersIndex({ orders, filters }: { orders: Paginated<Adm
                             <SelectItem value="cancelled">Cancelled</SelectItem>
                         </SelectContent>
                     </Select>
-                    <Select value={filters.payment_status ?? ''} onValueChange={(v) => applyFilter('payment_status', v)}>
+                    <Select value={filters.payment_status || '__all__'} onValueChange={(v) => applyFilter('payment_status', v === '__all__' ? '' : v)}>
                         <SelectTrigger className="h-9 w-40">
                             <SelectValue placeholder="Payment" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="">All payments</SelectItem>
+                            <SelectItem value="__all__">All payments</SelectItem>
                             <SelectItem value="due">Due</SelectItem>
                             <SelectItem value="paid">Paid</SelectItem>
                         </SelectContent>
                     </Select>
-                    <Select value={filters.sync_status ?? ''} onValueChange={(v) => applyFilter('sync_status', v)}>
+                    <Select value={filters.sync_status || '__all__'} onValueChange={(v) => applyFilter('sync_status', v === '__all__' ? '' : v)}>
                         <SelectTrigger className="h-9 w-36">
                             <SelectValue placeholder="Sync status" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="">All sync</SelectItem>
+                            <SelectItem value="__all__">All sync</SelectItem>
                             <SelectItem value="pending">Pending</SelectItem>
                             <SelectItem value="syncing">Syncing</SelectItem>
                             <SelectItem value="synced">Synced</SelectItem>

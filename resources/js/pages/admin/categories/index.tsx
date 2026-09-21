@@ -44,24 +44,24 @@ export default function CategoriesIndex({
                         defaultValue={filters.search ?? ''}
                         onChange={(e) => applyFilter('search', e.target.value)}
                     />
-                    <Select value={filters.parent_id ?? ''} onValueChange={(v) => applyFilter('parent_id', v)}>
+                    <Select value={filters.parent_id || '__all__'} onValueChange={(v) => applyFilter('parent_id', v === '__all__' ? '' : v)}>
                         <SelectTrigger className="h-9 w-44">
                             <SelectValue placeholder="Parent category" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="">All categories</SelectItem>
+                            <SelectItem value="__all__">All categories</SelectItem>
                             <SelectItem value="root">Top-level only</SelectItem>
                             {parentCategories.map((p) => (
                                 <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
-                    <Select value={filters.is_active ?? ''} onValueChange={(v) => applyFilter('is_active', v)}>
+                    <Select value={filters.is_active || '__all__'} onValueChange={(v) => applyFilter('is_active', v === '__all__' ? '' : v)}>
                         <SelectTrigger className="h-9 w-36">
                             <SelectValue placeholder="Active status" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="">All</SelectItem>
+                            <SelectItem value="__all__">All</SelectItem>
                             <SelectItem value="true">Active</SelectItem>
                             <SelectItem value="false">Inactive</SelectItem>
                         </SelectContent>
