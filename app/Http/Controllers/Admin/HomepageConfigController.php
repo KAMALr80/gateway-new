@@ -37,8 +37,8 @@ class HomepageConfigController extends Controller
     {
         $data = $request->validate([
             'client_key' => 'required|string|max:64|unique:homepage_configs,client_key|regex:/^[a-z0-9\-_]+$/',
-            'label'      => 'required|string|max:255',
-            'is_active'  => 'boolean',
+            'label' => 'required|string|max:255',
+            'is_active' => 'boolean',
         ]);
 
         $config = HomepageConfig::create($data);
@@ -51,22 +51,24 @@ class HomepageConfigController extends Controller
         $config->load('sections.items');
 
         return Inertia::render('admin/homepage/edit', [
-            'config'     => $config,
+            'config' => $config,
             'categories' => Category::select('id', 'name')->where('is_active', true)->orderBy('name')->get(),
-            'brands'     => Brand::select('id', 'name')->where('is_active', true)->orderBy('name')->get(),
-            'products'   => Product::select('id', 'name', 'sku')->where('is_active', true)->whereNull('parent_id')->orderBy('name')->get(),
+            'brands' => Brand::select('id', 'name')->where('is_active', true)->orderBy('name')->get(),
+            'products' => Product::select('id', 'name', 'sku')->where('is_active', true)->whereNull('parent_id')->orderBy('name')->get(),
         ]);
     }
 
     public function update(Request $request, HomepageConfig $config)
     {
         $data = $request->validate([
-            'client_key' => ['required', 'string', 'max:64', 'regex:/^[a-z0-9\-_]+$/', Rule::unique('homepage_configs')->ignore($config->id)],
-            'label'      => 'required|string|max:255',
-            'is_active'  => 'boolean',
+            'client_key' => ['required', 'string', 'max:64', 'regex:/^[a-z0-9\-_]+$/', Rule::in([$config->client_key]), Rule::unique('homepage_configs')->ignore($config->id)],
+            'label' => 'required|string|max:255',
+            'is_active' => 'boolean',
             'site_settings' => 'required|array',
             'site_settings.site_name' => 'nullable|string|max:255',
-            'site_settings.logo_url' => ['nullable', 'string', 'max:2048', 'regex:#^(https?://|/)#i'],
+            'site_settings.logo_url' => $request->hasFile('site_logo')
+                ? ['nullable', 'string', 'max:2048']
+                : ['nullable', 'url:http,https', 'max:2048'],
             'site_settings.phone' => 'nullable|string|max:40',
             'site_settings.email' => 'nullable|email|max:255',
             'site_settings.address' => 'nullable|string|max:1000',
@@ -82,7 +84,9 @@ class HomepageConfigController extends Controller
             'site_settings.seo_title' => 'nullable|string|max:255',
             'site_settings.seo_description' => 'nullable|string|max:500',
             'site_settings.homepage_heading' => 'nullable|string|max:255',
-            'site_settings.catalog_background_logo_url' => ['nullable', 'string', 'max:2048', 'regex:#^(https?://|/)#i'],
+            'site_settings.catalog_background_logo_url' => $request->hasFile('catalog_background_image')
+                ? ['nullable', 'string', 'max:2048']
+                : ['nullable', 'url:http,https', 'max:2048'],
             'site_settings.footer_copyright' => 'nullable|string|max:500',
             'site_settings.footer_legal_notice' => 'nullable|string|max:3000',
             'site_settings.business_hours_title' => 'nullable|string|max:120',
@@ -100,25 +104,63 @@ class HomepageConfigController extends Controller
             'site_settings.business_hours.*' => 'string|max:120',
             'site_logo' => 'nullable|image|mimes:jpg,jpeg,png,webp,gif|max:5120',
             'catalog_background_image' => 'nullable|image|mimes:jpg,jpeg,png,webp,gif|max:5120',
+            'remove_site_logo' => 'sometimes|boolean',
+            'remove_catalog_background' => 'sometimes|boolean',
         ]);
 
-        $directory = "homepage/{$config->client_key}/site";
+        if ($request->hasFile('site_logo') && $request->boolean('remove_site_logo')) {
+            throw ValidationException::withMessages(['site_logo' => 'Choose a new logo or remove the current logo, not both.']);
+        }
+
+        if ($request->hasFile('catalog_background_image') && $request->boolean('remove_catalog_background')) {
+            throw ValidationException::withMessages(['catalog_background_image' => 'Choose a new background or remove the current background, not both.']);
+        }
+
+        $oldClientKey = $config->client_key;
+        $directory = "homepage/{$data['client_key']}/site";
+        $newPaths = [];
+        $oldPaths = [];
+
         if ($request->hasFile('site_logo')) {
-            if ($config->site_logo_path && str_starts_with($config->site_logo_path, $directory.'/')) {
-                Storage::disk('public')->delete($config->site_logo_path);
-            }
             $data['site_logo_path'] = $request->file('site_logo')->store($directory, 'public');
+            $data['site_settings']['logo_url'] = null;
+            $newPaths[] = $data['site_logo_path'];
+            $oldPaths[] = $config->site_logo_path;
+        } elseif ($request->boolean('remove_site_logo')) {
+            $data['site_logo_path'] = null;
+            $oldPaths[] = $config->site_logo_path;
         }
+
         if ($request->hasFile('catalog_background_image')) {
-            if ($config->catalog_background_path && str_starts_with($config->catalog_background_path, $directory.'/')) {
-                Storage::disk('public')->delete($config->catalog_background_path);
-            }
             $data['catalog_background_path'] = $request->file('catalog_background_image')->store($directory, 'public');
+            $data['site_settings']['catalog_background_logo_url'] = null;
+            $newPaths[] = $data['catalog_background_path'];
+            $oldPaths[] = $config->catalog_background_path;
+        } elseif ($request->boolean('remove_catalog_background')) {
+            $data['catalog_background_path'] = null;
+            $oldPaths[] = $config->catalog_background_path;
         }
 
-        unset($data['site_logo'], $data['catalog_background_image']);
+        unset(
+            $data['site_logo'],
+            $data['catalog_background_image'],
+            $data['remove_site_logo'],
+            $data['remove_catalog_background'],
+        );
 
-        $config->update($data);
+        try {
+            $config->update($data);
+        } catch (\Throwable $exception) {
+            Storage::disk('public')->delete($newPaths);
+
+            throw $exception;
+        }
+
+        foreach ($oldPaths as $oldPath) {
+            if ($oldPath && ! in_array($oldPath, $newPaths, true)) {
+                $this->deleteOwnedSitePath($oldClientKey, $oldPath);
+            }
+        }
 
         return back()->with('success', 'Config updated.');
     }
@@ -131,6 +173,8 @@ class HomepageConfigController extends Controller
                 $this->deleteOwnedFiles($config, $section, $item);
             }
         }
+        $this->deleteOwnedSitePath($config->client_key, $config->site_logo_path);
+        $this->deleteOwnedSitePath($config->client_key, $config->catalog_background_path);
         $config->delete();
 
         return redirect()->route('admin.homepage.index')->with('success', 'Config deleted.');
@@ -139,10 +183,10 @@ class HomepageConfigController extends Controller
     public function storeSection(Request $request, HomepageConfig $config)
     {
         $base = $request->validate([
-            'type'      => 'required|in:featured_category,banner,hero,product_carousel,brand_showcase,catalog_showcase',
-            'title'     => 'required|string|max:255',
+            'type' => 'required|in:featured_category,banner,hero,product_carousel,brand_showcase,catalog_showcase',
+            'title' => 'required|string|max:255',
             'is_active' => 'boolean',
-            'settings'  => 'array',
+            'settings' => 'array',
         ]);
 
         $settings = $this->validateSettings($request, $base['type']);
@@ -150,10 +194,10 @@ class HomepageConfigController extends Controller
         $maxOrder = $config->sections()->max('sort_order') ?? -1;
 
         $config->sections()->create([
-            'type'       => $base['type'],
-            'title'      => $base['title'],
-            'is_active'  => $base['is_active'] ?? true,
-            'settings'   => $settings,
+            'type' => $base['type'],
+            'title' => $base['title'],
+            'is_active' => $base['is_active'] ?? true,
+            'settings' => $settings,
             'sort_order' => $maxOrder + 1,
         ]);
 
@@ -165,19 +209,19 @@ class HomepageConfigController extends Controller
         abort_if($section->homepage_config_id !== $config->id, 404);
 
         $base = $request->validate([
-            'type'      => 'required|in:featured_category,banner,hero,product_carousel,brand_showcase,catalog_showcase',
-            'title'     => 'required|string|max:255',
+            'type' => 'required|in:featured_category,banner,hero,product_carousel,brand_showcase,catalog_showcase',
+            'title' => 'required|string|max:255',
             'is_active' => 'boolean',
-            'settings'  => 'array',
+            'settings' => 'array',
         ]);
 
         $settings = $this->validateSettings($request, $base['type']);
 
         $section->update([
-            'type'      => $base['type'],
-            'title'     => $base['title'],
+            'type' => $base['type'],
+            'title' => $base['title'],
             'is_active' => $base['is_active'] ?? $section->is_active,
-            'settings'  => $settings,
+            'settings' => $settings,
         ]);
 
         return back()->with('success', 'Section updated.');
@@ -199,8 +243,8 @@ class HomepageConfigController extends Controller
     public function reorderSections(Request $request, HomepageConfig $config)
     {
         $request->validate([
-            'sections'             => 'required|array',
-            'sections.*.id'        => 'required|integer',
+            'sections' => 'required|array',
+            'sections.*.id' => 'required|integer',
             'sections.*.sort_order' => 'required|integer|min:0',
         ]);
 
@@ -423,14 +467,14 @@ class HomepageConfigController extends Controller
             'featured_category', 'banner', 'brand_showcase' => [],
 
             'hero' => $request->validate([
-                'settings.subtitle'  => 'nullable|string|max:500',
-                'settings.cta_text'  => 'nullable|string|max:100',
-                'settings.cta_url'   => 'nullable|string|max:2048',
+                'settings.subtitle' => 'nullable|string|max:500',
+                'settings.cta_text' => 'nullable|string|max:100',
+                'settings.cta_url' => 'nullable|string|max:2048',
                 'settings.interval_ms' => 'nullable|integer|min:2000|max:30000',
             ])['settings'] ?? [],
 
             'product_carousel' => $request->validate([
-                'settings.limit'  => 'integer|min:1|max:50',
+                'settings.limit' => 'integer|min:1|max:50',
                 'settings.product_ids' => 'present|array|max:50',
                 'settings.product_ids.*' => 'integer|distinct|exists:products,id',
             ])['settings'] ?? [],
@@ -501,6 +545,15 @@ class HomepageConfigController extends Controller
     private function deleteOwnedPath(HomepageConfig $config, HomepageSection $section, ?string $path): void
     {
         $prefix = "homepage/{$config->client_key}/{$section->id}/";
+        if ($path && str_starts_with($path, $prefix) && ! str_contains($path, '..')) {
+            Storage::disk('public')->delete($path);
+        }
+    }
+
+    private function deleteOwnedSitePath(string $clientKey, ?string $path): void
+    {
+        $prefix = "homepage/{$clientKey}/site/";
+
         if ($path && str_starts_with($path, $prefix) && ! str_contains($path, '..')) {
             Storage::disk('public')->delete($path);
         }

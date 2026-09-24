@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\HomepageConfig;
-use App\Models\HomepageSection;
 use App\Models\HomepageSectionItem;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -59,6 +58,105 @@ it('uploads a catalog cover and PDF for an administrator', function () {
     $this->get(route('homepage.catalog.pdf', ['item' => $item->id]))
         ->assertOk()
         ->assertHeader('Content-Type', 'application/pdf');
+});
+
+it('stores uploaded site branding and removes legacy URL fallbacks', function () {
+    Storage::fake('public');
+    $admin = User::factory()->create(['is_admin' => true]);
+    $config = HomepageConfig::create([
+        'client_key' => 'new-england',
+        'label' => 'New England',
+        'is_active' => true,
+        'site_logo_path' => 'homepage/new-england/site/old-logo.png',
+        'catalog_background_path' => 'homepage/new-england/site/old-background.png',
+        'site_settings' => [
+            'site_name' => 'New England Distribution',
+            'logo_url' => '/images/brand/old-logo.png',
+            'catalog_background_logo_url' => '/images/brand/old-background.png',
+        ],
+    ]);
+    Storage::disk('public')->put($config->site_logo_path, 'old logo');
+    Storage::disk('public')->put($config->catalog_background_path, 'old background');
+
+    $this->actingAs($admin)->patch("/admin/homepage/{$config->id}", [
+        'client_key' => 'new-england',
+        'label' => 'New England',
+        'is_active' => true,
+        'site_settings' => $config->site_settings,
+        'site_logo' => UploadedFile::fake()->image('logo.png', 400, 400),
+        'catalog_background_image' => UploadedFile::fake()->image('background.png', 1200, 800),
+    ])->assertRedirect();
+
+    $config->refresh();
+
+    expect($config->site_settings['logo_url'])->toBeNull()
+        ->and($config->site_settings['catalog_background_logo_url'])->toBeNull()
+        ->and($config->site_logo_path)->not->toBe('homepage/new-england/site/old-logo.png')
+        ->and($config->catalog_background_path)->not->toBe('homepage/new-england/site/old-background.png');
+    Storage::disk('public')->assertExists($config->site_logo_path);
+    Storage::disk('public')->assertExists($config->catalog_background_path);
+    Storage::disk('public')->assertMissing('homepage/new-england/site/old-logo.png');
+    Storage::disk('public')->assertMissing('homepage/new-england/site/old-background.png');
+});
+
+it('removes stored branding safely and keeps valid external fallbacks', function () {
+    Storage::fake('public');
+    $admin = User::factory()->create(['is_admin' => true]);
+    $config = HomepageConfig::create([
+        'client_key' => 'new-england',
+        'label' => 'New England',
+        'is_active' => true,
+        'site_logo_path' => 'homepage/new-england/site/logo.png',
+        'catalog_background_path' => 'homepage/new-england/site/background.png',
+        'site_settings' => ['site_name' => 'New England Distribution'],
+    ]);
+    Storage::disk('public')->put($config->site_logo_path, 'logo');
+    Storage::disk('public')->put($config->catalog_background_path, 'background');
+
+    $this->actingAs($admin)->patch("/admin/homepage/{$config->id}", [
+        'client_key' => 'new-england',
+        'label' => 'New England',
+        'is_active' => true,
+        'site_settings' => [
+            'site_name' => 'New England Distribution',
+            'logo_url' => 'https://cdn.example.com/logo.png',
+            'catalog_background_logo_url' => 'https://cdn.example.com/background.png',
+        ],
+        'remove_site_logo' => true,
+        'remove_catalog_background' => true,
+    ])->assertRedirect();
+
+    $config->refresh();
+
+    expect($config->site_logo_path)->toBeNull()
+        ->and($config->catalog_background_path)->toBeNull()
+        ->and($config->site_settings['logo_url'])->toBe('https://cdn.example.com/logo.png')
+        ->and($config->site_settings['catalog_background_logo_url'])->toBe('https://cdn.example.com/background.png');
+    Storage::disk('public')->assertMissing('homepage/new-england/site/logo.png');
+    Storage::disk('public')->assertMissing('homepage/new-england/site/background.png');
+    $this->getJson('/api/homepage?client=new-england')
+        ->assertOk()
+        ->assertJsonPath('site.logo_url', 'https://cdn.example.com/logo.png')
+        ->assertJsonPath('site.catalog_background_logo_url', 'https://cdn.example.com/background.png');
+});
+
+it('keeps the homepage client key immutable after creation', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    $config = HomepageConfig::create([
+        'client_key' => 'new-england',
+        'label' => 'New England',
+        'is_active' => true,
+        'site_settings' => [],
+    ]);
+
+    $this->actingAs($admin)->patch("/admin/homepage/{$config->id}", [
+        'client_key' => 'changed-client',
+        'label' => 'New England',
+        'is_active' => true,
+        'site_settings' => [],
+    ])->assertSessionHasErrors('client_key');
+
+    expect($config->fresh()->client_key)->toBe('new-england');
 });
 
 it('accepts a secure external image URL instead of an uploaded image', function () {
