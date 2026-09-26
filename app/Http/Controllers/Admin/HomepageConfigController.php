@@ -527,7 +527,7 @@ class HomepageConfigController extends Controller
                         'on_redirect' => fn ($request, $response, UriInterface $uri) => $this->assertPublicHost((string) $uri, $field),
                     ],
                 ])
-                ->withHeaders(['Referer' => $origin, 'User-Agent' => 'NewEnglandDistro/1.0']);
+                ->withHeaders(['Referer' => $origin, 'User-Agent' => 'Gateway/1.0']);
             // The local Windows PHP installation uses a self-signed development
             // certificate chain. Production continues to require TLS verification.
             if (app()->environment('local')) {

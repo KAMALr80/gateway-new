@@ -380,7 +380,7 @@ function SectionFields({
                             onChange={(e) =>
                                 setSetting('eyebrow', e.target.value)
                             }
-                            placeholder="New England Distro"
+                            placeholder="Gateway"
                         />
                     </div>
                     <div className="grid gap-2">
