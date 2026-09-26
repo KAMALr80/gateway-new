@@ -16,6 +16,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
+use Psr\Http\Message\UriInterface;
 
 class HomepageConfigController extends Controller
 {
@@ -116,6 +117,7 @@ class HomepageConfigController extends Controller
             throw ValidationException::withMessages(['catalog_background_image' => 'Choose a new background or remove the current background, not both.']);
         }
 
+        $data['site_settings'] = $this->normalizeSiteSettings($request, $data['site_settings']);
         $oldClientKey = $config->client_key;
         $directory = "homepage/{$data['client_key']}/site";
         $newPaths = [];
@@ -263,8 +265,8 @@ class HomepageConfigController extends Controller
     {
         $this->assertSectionBelongsToConfig($config, $section);
         $data = $this->validateItem($request, true, $section);
-        if ($section->type === 'product_carousel' && $data['kind'] === 'content') {
-            abort_if($section->items()->where('kind', 'content')->count() >= 2, 422, 'A product section supports at most two promotional banners.');
+        if ($section->type === 'product_carousel' && $data['kind'] === 'content' && $section->items()->where('kind', 'content')->count() >= 2) {
+            throw ValidationException::withMessages(['kind' => 'A product section supports at most two promotional banners.']);
         }
         $directory = "homepage/{$config->client_key}/{$section->id}";
         $data['desktop_image_path'] = $request->hasFile('desktop_image')
@@ -464,7 +466,17 @@ class HomepageConfigController extends Controller
     private function validateSettings(Request $request, string $type): array
     {
         return match ($type) {
-            'featured_category', 'banner', 'brand_showcase' => [],
+            'banner' => [],
+
+            'featured_category' => $request->validate([
+                'settings.category_id' => 'nullable|integer|exists:categories,id',
+                'settings.product_limit' => 'nullable|integer|min:1|max:50',
+            ])['settings'] ?? [],
+
+            'brand_showcase' => $request->validate([
+                'settings.brand_ids' => 'nullable|array',
+                'settings.brand_ids.*' => 'integer|distinct|exists:brands,id',
+            ])['settings'] ?? [],
 
             'hero' => $request->validate([
                 'settings.subtitle' => 'nullable|string|max:500',
@@ -499,20 +511,22 @@ class HomepageConfigController extends Controller
 
     private function storeRemoteImage(string $url, string $directory, string $field): string
     {
-        $host = parse_url($url, PHP_URL_HOST);
-        $ips = $host ? gethostbynamel($host) : false;
-        if (! $host || ! $ips || collect($ips)->contains(fn (string $ip) => filter_var(
-            $ip,
-            FILTER_VALIDATE_IP,
-            FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE,
-        ) === false)) {
-            throw ValidationException::withMessages([$field => 'The image URL must point to a publicly accessible server.']);
-        }
+        $this->assertPublicHost($url, $field);
 
         try {
-            $origin = parse_url($url, PHP_URL_SCHEME).'://'.$host.'/';
+            $origin = parse_url($url, PHP_URL_SCHEME).'://'.parse_url($url, PHP_URL_HOST).'/';
             $client = Http::connectTimeout(5)
                 ->timeout(15)
+                ->withOptions([
+                    // The host check only resolves IPv4 addresses, so never connect over IPv6.
+                    'force_ip_resolve' => 'v4',
+                    // Every redirect hop must pass the same public-host check as the original URL.
+                    'allow_redirects' => [
+                        'max' => 3,
+                        'protocols' => ['http', 'https'],
+                        'on_redirect' => fn ($request, $response, UriInterface $uri) => $this->assertPublicHost((string) $uri, $field),
+                    ],
+                ])
                 ->withHeaders(['Referer' => $origin, 'User-Agent' => 'NewEnglandDistro/1.0']);
             // The local Windows PHP installation uses a self-signed development
             // certificate chain. Production continues to require TLS verification.
@@ -520,6 +534,8 @@ class HomepageConfigController extends Controller
                 $client = $client->withoutVerifying();
             }
             $response = $client->get($url);
+        } catch (ValidationException $exception) {
+            throw $exception;
         } catch (\Throwable) {
             throw ValidationException::withMessages([$field => 'The image could not be downloaded from this URL.']);
         }
@@ -540,6 +556,42 @@ class HomepageConfigController extends Controller
         Storage::disk('public')->put($path, $body);
 
         return $path;
+    }
+
+    private function assertPublicHost(string $url, string $field): void
+    {
+        $host = parse_url($url, PHP_URL_HOST);
+        $ips = $host ? gethostbynamel($host) : false;
+        if (! $host || ! $ips || collect($ips)->contains(fn (string $ip) => filter_var(
+            $ip,
+            FILTER_VALIDATE_IP,
+            FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE | FILTER_FLAG_GLOBAL_RANGE,
+        ) === false)) {
+            throw ValidationException::withMessages([$field => 'The image URL must point to a publicly accessible server.']);
+        }
+    }
+
+    /**
+     * The edit page submits multipart form data, which sends booleans as "0"/"1"
+     * and omits empty arrays. Restore the JSON shape the storefront and edit page read.
+     */
+    private function normalizeSiteSettings(Request $request, array $settings): array
+    {
+        if (array_key_exists('newsletter_enabled', $settings)) {
+            $settings['newsletter_enabled'] = $request->boolean('site_settings.newsletter_enabled');
+        }
+
+        $settings['nav_groups'] = array_map(
+            fn (array $group) => $group + ['keywords' => []],
+            $settings['nav_groups'] ?? [],
+        );
+        $settings['footer_columns'] = array_map(
+            fn (array $column) => $column + ['links' => []],
+            $settings['footer_columns'] ?? [],
+        );
+        $settings['business_hours'] ??= [];
+
+        return $settings;
     }
 
     private function deleteOwnedPath(HomepageConfig $config, HomepageSection $section, ?string $path): void

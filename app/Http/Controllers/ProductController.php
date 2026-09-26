@@ -58,13 +58,15 @@ class ProductController extends Controller
             $query->where('brand_id', $request->brand_id);
         }
 
-        $requestedIds = collect(explode(',', (string) $request->input('ids', '')))
+        $rawIds = $request->input('ids');
+        $requestedIds = collect(is_string($rawIds) ? explode(',', $rawIds) : [])
             ->filter(fn ($id) => ctype_digit($id))
             ->map(fn ($id) => (int) $id)
             ->unique()
             ->take(200)
             ->values();
-        if ($requestedIds->isNotEmpty()) {
+        // An explicit id list never falls back to the unfiltered catalogue.
+        if ($request->has('ids')) {
             $query->whereIn('id', $requestedIds);
         }
 

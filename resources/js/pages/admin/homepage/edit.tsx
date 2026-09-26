@@ -315,7 +315,7 @@ function SectionFields({
                             type="number"
                             min={1}
                             max={50}
-                            value={data.settings.limit ?? 10}
+                            value={data.settings.limit ?? 14}
                             onChange={(e) =>
                                 setSetting('limit', parseInt(e.target.value))
                             }
@@ -540,16 +540,19 @@ export default function HomepageEdit({
         remove_site_logo: false,
         remove_catalog_background: false,
     });
+    // Settings saved before keywords/links were always stored may lack them.
     const initialNavText = (siteSettings.nav_groups ?? [])
         .map(
             (group) =>
-                `${group.label} | ${group.keywords.join(', ')} | ${group.url ?? ''}`,
+                `${group.label} | ${(group.keywords ?? []).join(', ')} | ${group.url ?? ''}`,
         )
         .join('\n');
     const initialFooterText = (siteSettings.footer_columns ?? [])
         .flatMap((column) => [
             `[${column.title}]`,
-            ...column.links.map((link) => `${link.label} | ${link.url}`),
+            ...(column.links ?? []).map(
+                (link) => `${link.label} | ${link.url}`,
+            ),
         ])
         .join('\n');
     const initialHoursText = (siteSettings.business_hours ?? []).join('\n');
@@ -878,6 +881,18 @@ export default function HomepageEdit({
         navText !== initialNavText ||
         footerText !== initialFooterText ||
         hoursText !== initialHoursText;
+    // Errors for fields that have no inline InputError (nested site settings).
+    const inlineConfigErrorKeys = [
+        'label',
+        'client_key',
+        'site_logo',
+        'site_settings.logo_url',
+        'catalog_background_image',
+        'site_settings.catalog_background_logo_url',
+    ];
+    const otherConfigErrors = Object.entries(configForm.errors).filter(
+        ([key]) => !inlineConfigErrorKeys.includes(key),
+    );
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -1623,6 +1638,21 @@ export default function HomepageEdit({
                                 </div>
                             </div>
                         </div>
+                        {otherConfigErrors.length > 0 && (
+                            <div
+                                role="alert"
+                                className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive"
+                            >
+                                <p className="font-semibold">
+                                    Site settings were not saved:
+                                </p>
+                                <ul className="mt-2 list-disc space-y-1 pl-5">
+                                    {otherConfigErrors.map(([key, message]) => (
+                                        <li key={key}>{message}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
                         <div className="sticky bottom-4 z-10 flex items-center justify-between gap-4 rounded-xl border bg-background/95 p-3 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/85">
                             <p
                                 className={`hidden text-xs sm:block ${hasUnsavedSiteChanges ? 'font-medium text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}
@@ -2253,6 +2283,7 @@ export default function HomepageEdit({
                                     </SelectItem>
                                 </SelectContent>
                             </Select>
+                            <InputError message={itemForm.errors.kind} />
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="item-title">Internal title</Label>
@@ -2263,6 +2294,7 @@ export default function HomepageEdit({
                                     itemForm.setData('title', e.target.value)
                                 }
                             />
+                            <InputError message={itemForm.errors.title} />
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="item-alt">
@@ -2293,6 +2325,7 @@ export default function HomepageEdit({
                                     itemForm.setData('link_url', e.target.value)
                                 }
                             />
+                            <InputError message={itemForm.errors.link_url} />
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="desktop-image">
@@ -2476,6 +2509,14 @@ export default function HomepageEdit({
                                 background is recommended.
                             </p>
                             <InputError message={brandForm.errors.images} />
+                            {Object.entries(brandForm.errors)
+                                .filter(([key]) => key.startsWith('images.'))
+                                .map(([key, message]) => (
+                                    <InputError
+                                        key={key}
+                                        message={`${brandForm.data.images[Number(key.split('.')[1])]?.name ?? key}: ${message}`}
+                                    />
+                                ))}
                         </div>
                         {brandForm.data.images.length > 0 && (
                             <div className="max-h-40 overflow-y-auto rounded-md border p-3 text-xs">
