@@ -164,6 +164,7 @@ export interface AdminOrder {
     sync_error: string | null;
     synced_at: string | null;
     transaction_date: string | null;
+    created_via?: string | null;
     items_count?: number;
     user?: AdminUser | null;
     items?: AdminOrderItem[];
@@ -171,7 +172,7 @@ export interface AdminOrder {
     updated_at: string;
 }
 
-export type HomepageSectionType = 'featured_category' | 'banner' | 'hero' | 'product_carousel' | 'brand_showcase';
+export type HomepageSectionType = 'featured_category' | 'banner' | 'hero' | 'product_carousel' | 'brand_showcase' | 'catalog_showcase';
 
 export interface HomepageSectionSettings {
     // featured_category
@@ -184,11 +185,18 @@ export interface HomepageSectionSettings {
     // hero
     cta_text?: string;
     cta_url?: string;
+    interval_ms?: number;
     // product_carousel
     filter?: 'new' | 'sale' | 'featured';
     limit?: number;
+    offset?: number;
+    product_ids?: number[];
     // brand_showcase
     brand_ids?: number[];
+    // catalog_showcase
+    eyebrow?: string;
+    heading_phrases?: string[];
+    description?: string;
 }
 
 export interface HomepageSection {
@@ -199,6 +207,25 @@ export interface HomepageSection {
     sort_order: number;
     is_active: boolean;
     settings: HomepageSectionSettings;
+    items?: HomepageSectionItem[];
+    created_at: string;
+    updated_at: string;
+}
+
+export interface HomepageSectionItem {
+    id: number;
+    homepage_section_id: number;
+    kind: 'content' | 'heading' | 'slide' | 'brand' | 'catalog';
+    title: string | null;
+    desktop_image_path: string | null;
+    desktop_image_external_url: string | null;
+    mobile_image_path: string | null;
+    mobile_image_external_url: string | null;
+    pdf_path: string | null;
+    alt_text: string | null;
+    link_url: string | null;
+    sort_order: number;
+    is_active: boolean;
     created_at: string;
     updated_at: string;
 }
@@ -207,11 +234,41 @@ export interface HomepageConfig {
     id: number;
     client_key: string;
     label: string;
+    site_settings: SiteSettings | null;
+    site_logo_path: string | null;
+    catalog_background_path: string | null;
     is_active: boolean;
     sections?: HomepageSection[];
     sections_count?: number;
     created_at: string;
     updated_at: string;
+}
+
+export interface SiteSettings {
+    site_name?: string;
+    logo_url?: string;
+    phone?: string;
+    email?: string;
+    address?: string;
+    search_placeholder?: string;
+    login_text?: string;
+    register_text?: string;
+    sale_label?: string;
+    sale_url?: string;
+    newsletter_enabled?: boolean;
+    newsletter_title?: string;
+    newsletter_placeholder?: string;
+    newsletter_button_text?: string;
+    seo_title?: string;
+    seo_description?: string;
+    homepage_heading?: string;
+    catalog_background_logo_url?: string;
+    footer_copyright?: string;
+    footer_legal_notice?: string;
+    business_hours_title?: string;
+    nav_groups?: { label: string; keywords: string[]; url?: string }[];
+    footer_columns?: { title: string; links: { label: string; url: string }[] }[];
+    business_hours?: string[];
 }
 
 export interface PaginatedMeta {

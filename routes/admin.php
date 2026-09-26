@@ -42,4 +42,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'verified', 'admin']
     Route::post('homepage/{config}/sections', [HomepageConfigController::class, 'storeSection'])->name('homepage.sections.store');
     Route::patch('homepage/{config}/sections/{section}', [HomepageConfigController::class, 'updateSection'])->name('homepage.sections.update');
     Route::delete('homepage/{config}/sections/{section}', [HomepageConfigController::class, 'destroySection'])->name('homepage.sections.destroy');
+    Route::post('homepage/{config}/sections/{section}/items', [HomepageConfigController::class, 'storeItem'])->name('homepage.sections.items.store');
+    Route::post('homepage/{config}/sections/{section}/items/reorder', [HomepageConfigController::class, 'reorderItems'])->name('homepage.sections.items.reorder');
+    Route::post('homepage/{config}/sections/{section}/items/bulk-brands', [HomepageConfigController::class, 'storeBrandLogos'])->name('homepage.sections.items.bulk-brands');
+    Route::post('homepage/{config}/sections/{section}/items/{item}', [HomepageConfigController::class, 'updateItem'])->name('homepage.sections.items.update');
+    Route::delete('homepage/{config}/sections/{section}/items/{item}', [HomepageConfigController::class, 'destroyItem'])->name('homepage.sections.items.destroy');
 });

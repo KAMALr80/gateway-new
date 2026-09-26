@@ -21,6 +21,10 @@ Route::prefix('auth')->group(function () {
 });
 
 // Catalogue — publicly browsable; optional auth used to determine price visibility
+Route::get('/homepage/catalogs/{item}/pdf', [HomepageController::class, 'catalogPdf'])
+    ->whereNumber('item')
+    ->name('homepage.catalog.pdf');
+
 Route::middleware('auth.optional')->group(function () {
     Route::get('/homepage',        [HomepageController::class, 'show']);
     Route::get('/products',        [ProductController::class, 'index']);

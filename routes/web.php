@@ -8,7 +8,11 @@ Route::inertia('/', 'welcome', [
 ])->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::inertia('dashboard', 'dashboard')->name('dashboard');
+    Route::get('dashboard', function () {
+        return auth()->user()?->is_admin
+            ? redirect()->route('admin.dashboard')
+            : redirect()->route('home');
+    })->name('dashboard');
 });
 
 require __DIR__.'/settings.php';

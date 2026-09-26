@@ -30,6 +30,7 @@ class ProductController extends Controller
                 'sort',
                 'per_page',
                 'page',
+                'ids',
             ]),
             ['prices' => $showPrices ? '1' : '0']
         )));
@@ -55,6 +56,18 @@ class ProductController extends Controller
 
         if ($request->filled('brand_id')) {
             $query->where('brand_id', $request->brand_id);
+        }
+
+        $rawIds = $request->input('ids');
+        $requestedIds = collect(is_string($rawIds) ? explode(',', $rawIds) : [])
+            ->filter(fn ($id) => ctype_digit($id))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->take(200)
+            ->values();
+        // An explicit id list never falls back to the unfiltered catalogue.
+        if ($request->has('ids')) {
+            $query->whereIn('id', $requestedIds);
         }
 
         if ($request->filled('type')) {
@@ -115,7 +128,8 @@ class ProductController extends Controller
             default      => $query->orderBy('name', 'asc'),
         };
 
-        $perPage  = min((int) $request->get('per_page', 20), 100);
+        $perPageCap = $requestedIds->isNotEmpty() ? 200 : 100;
+        $perPage  = min((int) $request->get('per_page', 20), $perPageCap);
         $products = $query->paginate($perPage);
 
         $data = [

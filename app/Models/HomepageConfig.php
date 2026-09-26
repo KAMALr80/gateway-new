@@ -10,11 +10,15 @@ class HomepageConfig extends Model
     protected $fillable = [
         'client_key',
         'label',
+        'site_settings',
+        'site_logo_path',
+        'catalog_background_path',
         'is_active',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'site_settings' => 'array',
     ];
 
     public function sections(): HasMany
