@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\OrderRequest;
 use App\Jobs\SendOrderToErp;
+use App\Models\CartItem;
 use App\Models\Order;
 use App\Models\Product;
 use App\Services\SequenceService;
@@ -131,6 +132,12 @@ class OrderController extends Controller
                 ]);
 
                 $order->items()->createMany($lineItems);
+
+                // The ordered products leave the account cart in the same transaction, so every device sees
+                // the emptied cart even if the client never gets to clear it.
+                CartItem::where('user_id', $user->id)
+                    ->whereIn('product_id', array_column($lineItems, 'product_id'))
+                    ->delete();
 
                 return $order;
             });

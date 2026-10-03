@@ -3,6 +3,7 @@
 use App\Http\Controllers\AddressController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BrandController;
+use App\Http\Controllers\CartController;
 use App\Http\Controllers\HomepageController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ProductController;
@@ -54,8 +55,16 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/orders',      [OrderController::class, 'index']);
     });
 
+    // Cart (account-level, shared across devices)
+    Route::get('/cart',                          [CartController::class, 'index']);
+    Route::delete('/cart',                       [CartController::class, 'clear']);
+    Route::post('/cart/items',                   [CartController::class, 'store']);
+    Route::patch('/cart/items/{productId}',      [CartController::class, 'update'])->whereNumber('productId');
+    Route::delete('/cart/items/{productId}',     [CartController::class, 'destroy'])->whereNumber('productId');
+    Route::post('/cart/merge',                   [CartController::class, 'merge']);
+
     // Wishlist
-    Route::get('/wishlist',                          [WishlistController::class, 'index']);
+    Route::get('/wishlist',                         [WishlistController::class, 'index']);
     Route::post('/wishlist',                         [WishlistController::class, 'store']);
     Route::delete('/wishlist/{id}',                  [WishlistController::class, 'destroy']);
     Route::delete('/wishlist/product/{productId}',   [WishlistController::class, 'destroyByProduct']);
