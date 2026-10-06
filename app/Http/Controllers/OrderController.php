@@ -76,9 +76,12 @@ class OrderController extends Controller
             ];
         }
 
-        $discountTotal  = $data['discount_total']  ?? 0;
-        $shippingTotal  = $data['shipping_total']  ?? 0;
-        $totalTax       = $data['total_tax']        ?? 0;
+        // Totals are never taken from the client: the storefront has no discount, shipping or tax engine
+        // (shipping is quoted later and prices are net of tax), so these stay 0 until one exists server-side.
+        // Accepting client values here allowed a buyer to lower the order total.
+        $discountTotal  = 0;
+        $shippingTotal  = 0;
+        $totalTax       = 0;
         $total          = $lineTotal - $discountTotal + $shippingTotal + $totalTax;
 
         $sequence = app(SequenceService::class);
@@ -98,7 +101,7 @@ class OrderController extends Controller
                     'erp_customer_id'      => $user->erp_contact_id,
                     'status'               => 'pending',
                     'payment_status'       => 'due',
-                    'currency'             => $data['currency']       ?? 'USD',
+                    'currency'             => 'USD', // catalog prices are USD
                     'line_total'           => $lineTotal,
                     'discount_total'       => $discountTotal,
                     'shipping_total'       => $shippingTotal,
@@ -141,15 +144,6 @@ class OrderController extends Controller
 
                 return $order;
             });
-
-            // Dispatch job to send order to ERP asynchronously
-            SendOrderToErp::dispatch($order);
-
-            return response()->json([
-                'message' => 'Order placed successfully',
-                'data'    => $this->formatOrder($order),
-            ], 201);
-
         } catch (\Throwable $e) {
             Log::emergency('Failed to place order', [
                 'error' => $e->getMessage(),
@@ -159,6 +153,23 @@ class OrderController extends Controller
             ]);
             return response()->json(['message' => 'Failed to place order'], 500);
         }
+
+        // The order is committed at this point. A failure to queue the ERP sync must not be reported to the
+        // buyer as a failed order (they would place it again); it is logged and the order stays 'pending'
+        // so it can be re-sent.
+        try {
+            SendOrderToErp::dispatch($order);
+        } catch (\Throwable $e) {
+            Log::error('Order placed but ERP sync could not be queued', [
+                'order_id' => $order->id,
+                'error'    => $e->getMessage(),
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Order placed successfully',
+            'data'    => $this->formatOrder($order),
+        ], 201);
     }
 
     public function show(int $id): JsonResponse

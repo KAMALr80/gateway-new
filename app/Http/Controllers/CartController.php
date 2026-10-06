@@ -19,6 +19,9 @@ use Illuminate\Support\Facades\DB;
  */
 class CartController extends Controller
 {
+    /** Re-run a cart transaction this many times if the database reports a deadlock. */
+    private const TRANSACTION_ATTEMPTS = 5;
+
     public function index(): JsonResponse
     {
         return $this->cartResponse();
@@ -39,6 +42,7 @@ class CartController extends Controller
 
         $notices = [];
         DB::transaction(function () use ($product, $data, &$notices) {
+            $notices = [];
             $item    = $this->lockLine($product->id);
             $wanted  = $item->quantity + $data['quantity'];
             $allowed = min($wanted, $this->maxQuantity($product));
@@ -46,7 +50,7 @@ class CartController extends Controller
                 $notices[] = "{$product->name}: quantity limited to {$allowed}.";
             }
             $item->update(['quantity' => $allowed]);
-        });
+        }, self::TRANSACTION_ATTEMPTS);
 
         return $this->cartResponse($notices);
     }
@@ -76,13 +80,14 @@ class CartController extends Controller
 
         $notices = [];
         DB::transaction(function () use ($product, $data, &$notices) {
+            $notices = [];
             $item    = $this->lockLine($product->id);
             $allowed = min($data['quantity'], $this->maxQuantity($product));
             if ($allowed < $data['quantity']) {
                 $notices[] = "{$product->name}: quantity limited to {$allowed}.";
             }
             $item->update(['quantity' => $allowed]);
-        });
+        }, self::TRANSACTION_ATTEMPTS);
 
         return $this->cartResponse($notices);
     }
@@ -115,8 +120,9 @@ class CartController extends Controller
             'items.*.quantity'   => ['required', 'integer', 'min:1'],
         ]);
 
-        $userId = auth('api')->id();
-        if (! empty($data['merge_id']) && ! Cache::add("cart-merge:{$userId}:{$data['merge_id']}", true, now()->addDay())) {
+        $userId   = auth('api')->id();
+        $mergeKey = empty($data['merge_id']) ? null : "cart-merge:{$userId}:{$data['merge_id']}";
+        if ($mergeKey && ! Cache::add($mergeKey, true, now()->addDay())) {
             return $this->cartResponse(); // already merged (client retry)
         }
 
@@ -127,39 +133,60 @@ class CartController extends Controller
         $products = Product::whereIn('id', $incoming->keys())->get()->keyBy('id');
         $notices  = [];
 
-        DB::transaction(function () use ($incoming, $products, &$notices) {
-            foreach ($incoming as $productId => $quantity) {
-                $product = $products->get($productId);
-                if ($error = $this->unavailableReason($product)) {
-                    $notices[] = ($product?->name ?? 'A product') . ' could not be added: ' . lcfirst($error);
-                    continue;
-                }
-
-                $item    = $this->lockLine($product->id);
-                $wanted  = $item->quantity + $quantity;
-                $allowed = min($wanted, $this->maxQuantity($product));
-                if ($allowed < $wanted) {
-                    $notices[] = "{$product->name}: quantity limited to {$allowed}.";
-                }
-                $item->update(['quantity' => $allowed]);
+        try {
+            DB::transaction(function () use ($incoming, $products, &$notices) {
+                $notices = [];
+                $this->mergeLines($incoming, $products, $notices);
+            }, self::TRANSACTION_ATTEMPTS);
+        } catch (\Throwable $e) {
+            // Let the client retry the same merge_id instead of silently dropping the guest cart.
+            if ($mergeKey) {
+                Cache::forget($mergeKey);
             }
-        });
+            throw $e;
+        }
 
         return $this->cartResponse($notices);
+    }
+
+    private function mergeLines(Collection $incoming, Collection $products, array &$notices): void
+    {
+        foreach ($incoming as $productId => $quantity) {
+            $product = $products->get($productId);
+            if ($error = $this->unavailableReason($product)) {
+                $notices[] = ($product?->name ?? 'A product') . ' could not be added: ' . lcfirst($error);
+                continue;
+            }
+
+            $item    = $this->lockLine($product->id);
+            $wanted  = $item->quantity + $quantity;
+            $allowed = min($wanted, $this->maxQuantity($product));
+            if ($allowed < $wanted) {
+                $notices[] = "{$product->name}: quantity limited to {$allowed}.";
+            }
+            $item->update(['quantity' => $allowed]);
+        }
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     /**
      * Returns the user's line for a product, locked for update, creating it (quantity 0) if missing.
-     * insertOrIgnore + the unique (user_id, product_id) index means simultaneous requests can never
-     * create duplicate lines; the row lock serialises quantity changes. Must run inside a transaction.
+     * The unique (user_id, product_id) index means simultaneous requests can never create duplicate lines;
+     * the row lock serialises quantity changes. An existing line is locked directly (the common case);
+     * creating a new one can still deadlock under heavy concurrency on InnoDB, which is why every caller
+     * runs inside DB::transaction(..., TRANSACTION_ATTEMPTS) - Laravel re-runs the closure on a deadlock.
      */
     private function lockLine(int $productId): CartItem
     {
         $userId = auth('api')->id();
-        $now    = now();
+        $line   = fn () => CartItem::where('user_id', $userId)->where('product_id', $productId)->lockForUpdate();
 
+        if ($existing = $line()->first()) {
+            return $existing;
+        }
+
+        $now = now();
         CartItem::insertOrIgnore([
             'user_id'    => $userId,
             'product_id' => $productId,
@@ -168,7 +195,7 @@ class CartController extends Controller
             'updated_at' => $now,
         ]);
 
-        return CartItem::where('user_id', $userId)->where('product_id', $productId)->lockForUpdate()->firstOrFail();
+        return $line()->firstOrFail();
     }
 
     /** Why a product cannot be put in the cart, or null when it can. Mirrors what OrderController accepts. */
