@@ -92,6 +92,9 @@ class HomepageController extends Controller
             'Content-Disposition' => 'inline; filename="'.str($item->title ?: 'catalog')->slug().'.pdf"',
             'Cache-Control' => 'public, max-age=3600',
             'X-Content-Type-Options' => 'nosniff',
+            // Lets the cross-origin storefront (pdf.js) see that byte ranges are supported, so phones/tablets
+            // only download the pages being viewed instead of the whole catalog.
+            'Access-Control-Expose-Headers' => 'Accept-Ranges, Content-Range, Content-Length',
         ]);
     }
 
