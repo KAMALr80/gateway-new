@@ -13,8 +13,9 @@ use App\Http\Controllers\WishlistController;
 use Illuminate\Support\Facades\Route;
 
 // Numeric ids only: a non-numeric id is a 404, not a TypeError (500) in the int-typed controllers.
-Route::pattern('id', '[0-9]+');
-Route::pattern('productId', '[0-9]+');
+// At most 18 digits: longer numbers overflow PHP's int and used to produce a 500.
+Route::pattern('id', '[0-9]{1,18}');
+Route::pattern('productId', '[0-9]{1,18}');
 
 // Public
 Route::prefix('auth')->group(function () {

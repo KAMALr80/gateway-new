@@ -113,3 +113,67 @@ test('an order is still confirmed when the ERP sync cannot be queued', function 
 
     expect(Order::count())->toBe(1);
 });
+
+test('ids longer than PHP int are a 404, and 404 bodies do not reveal model names', function () {
+    $this->getJson('/api/products/99999999999999999999')->assertNotFound();
+    $this->getJson('/api/brands/99999999999999999999')->assertNotFound();
+    $this->getJson('/api/products/999999')->assertNotFound()->assertExactJson(['message' => 'Not found.']);
+});
+
+test('responses carry baseline security headers and no PHP banner', function () {
+    $response = $this->getJson('/api/products');
+
+    $response->assertHeader('X-Content-Type-Options', 'nosniff')
+        ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+        ->assertHeader('X-Frame-Options', 'SAMEORIGIN')
+        ->assertHeaderMissing('X-Powered-By');
+});
+
+test('a failed ERP sync throws so the queue retries it with backoff', function () {
+    $user  = User::factory()->create(['approval_status' => 'approved']);
+    $order = Order::create([
+        'invoice_no' => 'ORD-ERP-1', 'order_key' => 'order_test', 'created_via' => 'rest-api', 'transaction_date' => now(),
+        'user_id' => $user->id, 'status' => 'pending', 'payment_status' => 'due', 'currency' => 'USD',
+        'line_total' => 1, 'discount_total' => 0, 'shipping_total' => 0, 'total_tax' => 0, 'total' => 1,
+        'billing_first_name' => 'A', 'billing_last_name' => 'B', 'billing_address_1' => '1', 'billing_city' => 'C', 'billing_postcode' => '1',
+        'billing_country' => 'US', 'billing_email' => 'a@b.test', 'billing_phone' => '1', 'shipping_first_name' => 'A', 'shipping_last_name' => 'B',
+        'shipping_address_1' => '1', 'shipping_city' => 'C', 'shipping_postcode' => '1', 'shipping_country' => 'US', 'sync_status' => 'pending',
+    ]);
+    config(['services.erp.order_webhook_url' => 'https://erp.invalid/orders']);
+    \Illuminate\Support\Facades\Http::fake(['*' => \Illuminate\Support\Facades\Http::sequence()
+        ->push('down', 503)
+        ->push(['erp_order_id' => 77], 200)]);
+
+    expect(fn () => (new \App\Jobs\SendOrderToErp($order))->handle(app(\App\Services\ErpOrderService::class)))
+        ->toThrow(RuntimeException::class);
+    expect($order->fresh()->sync_attempts)->toBe(1)
+        ->and($order->fresh()->sync_status)->toBe('pending');
+
+    (new \App\Jobs\SendOrderToErp($order->fresh()))->handle(app(\App\Services\ErpOrderService::class));
+    expect($order->fresh()->sync_status)->toBe('synced');
+});
+
+test('erp:retry-orders re-queues stale unsynced orders only', function () {
+    \Illuminate\Support\Facades\Queue::fake();
+    $user = User::factory()->create(['approval_status' => 'approved']);
+    $make = fn (string $status, $attemptAt, string $key) => Order::create([
+        'invoice_no' => "ORD-{$key}", 'order_key' => "order_{$key}", 'created_via' => 'rest-api', 'transaction_date' => now(),
+        'user_id' => $user->id, 'status' => 'pending', 'payment_status' => 'due', 'currency' => 'USD',
+        'line_total' => 1, 'discount_total' => 0, 'shipping_total' => 0, 'total_tax' => 0, 'total' => 1,
+        'billing_first_name' => 'A', 'billing_last_name' => 'B', 'billing_address_1' => '1', 'billing_city' => 'C', 'billing_postcode' => '1',
+        'billing_country' => 'US', 'billing_email' => 'a@b.test', 'billing_phone' => '1', 'shipping_first_name' => 'A', 'shipping_last_name' => 'B',
+        'shipping_address_1' => '1', 'shipping_city' => 'C', 'shipping_postcode' => '1', 'shipping_country' => 'US',
+        'sync_status' => $status, 'last_sync_attempt_at' => $attemptAt,
+    ]);
+    $stale  = $make('pending', now()->subHours(2), 'stale');
+    $make('pending', now()->subMinutes(5), 'recent');
+    $make('synced', now()->subHours(2), 'synced');
+    $failed = $make('failed', now()->subHours(2), 'failed');
+
+    $this->artisan('erp:retry-orders')->assertSuccessful();
+    \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\SendOrderToErp::class, 1);
+    \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\SendOrderToErp::class, fn ($job) => $job->order->is($stale));
+
+    $this->artisan('erp:retry-orders --include-failed')->assertSuccessful();
+    \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\SendOrderToErp::class, fn ($job) => $job->order->is($failed));
+});
