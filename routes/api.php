@@ -5,6 +5,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\HomepageController;
+use App\Http\Controllers\MediaThumbnailController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\CategoryController;
@@ -30,6 +31,11 @@ Route::prefix('auth')->group(function () {
 Route::get('/homepage/catalogs/{item}/pdf', [HomepageController::class, 'catalogPdf'])
     ->whereNumber('item')
     ->name('homepage.catalog.pdf');
+
+// WebP variants of product images (public; immutable — the hash changes when the source changes).
+Route::get('/media/{id}/{hash}/{size}.webp', [MediaThumbnailController::class, 'show'])
+    ->where(['hash' => '[a-f0-9]{20}', 'size' => '[0-9]{2,4}'])
+    ->name('media.thumbnail');
 
 Route::middleware('auth.optional')->group(function () {
     Route::get('/homepage',        [HomepageController::class, 'show']);

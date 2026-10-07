@@ -4,12 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Services\CacheService;
+use App\Services\MediaThumbnails;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class ProductController extends Controller
 {
-    public function __construct(protected CacheService $cache) {}
+    public function __construct(protected CacheService $cache, protected MediaThumbnails $thumbnails) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -209,6 +210,8 @@ class ProductController extends Controller
             'in_stock'       => $product->in_stock,
             'stock_quantity' => $product->manage_stock ? $product->stock_quantity : null,
             'image'          => $product->primaryImage?->public_url,
+            // Optional WebP variants keyed by size (64/256/512/1024) plus "original"; null when there are none.
+            'image_variants' => $this->thumbnails->variantsFor($product->primaryImage),
             'category'       => $product->category ? [
                 'id'   => $product->category->id,
                 'name' => $product->category->name,
@@ -235,6 +238,7 @@ class ProductController extends Controller
                 'thumbnail'  => $m->thumbnail_url,
                 'alt'        => $m->alt,
                 'is_primary' => $m->is_primary,
+                'variants'   => $this->thumbnails->variantsFor($m),
             ])->values()->all();
             $data['parent']   = $groupData['parent']   ?? null;
             $data['children'] = $groupData['children'] ?? [];
