@@ -18,6 +18,10 @@ use Illuminate\Support\Facades\Route;
 Route::pattern('id', '[0-9]{1,18}');
 Route::pattern('productId', '[0-9]{1,18}');
 
+// API root (GET /api): a cheap, public "is the API up" answer. No database, no secrets, no version info.
+Route::get('/', fn () => response()->json(['success' => true, 'message' => 'API is running']))
+    ->name('api.root');
+
 // Public
 Route::prefix('auth')->group(function () {
     Route::post('/register',        [AuthController::class, 'register'])->middleware('throttle:api-auth-sensitive');

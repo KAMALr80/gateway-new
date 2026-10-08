@@ -177,3 +177,29 @@ test('erp:retry-orders re-queues stale unsynced orders only', function () {
     $this->artisan('erp:retry-orders --include-failed')->assertSuccessful();
     \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\SendOrderToErp::class, fn ($job) => $job->order->is($failed));
 });
+
+test('the API root answers with a simple JSON status', function () {
+    foreach (['/api', '/api/'] as $path) {
+        $this->getJson($path)->assertOk()->assertExactJson(['success' => true, 'message' => 'API is running']);
+    }
+
+    // existing routes are untouched
+    $this->getJson('/api/does-not-exist')->assertNotFound();
+    $this->postJson('/api/auth/login', [])->assertStatus(422);
+});
+
+test('the API root is covered by CORS for the configured frontend origin', function () {
+    config(['cors.allowed_origins' => ['https://frontend.example']]);
+
+    $this->withHeaders(['Origin' => 'https://frontend.example'])->getJson('/api')
+        ->assertOk()->assertHeader('Access-Control-Allow-Origin', 'https://frontend.example');
+});
+
+test('the API root never echoes an unlisted origin', function () {
+    config(['cors.allowed_origins' => ['https://frontend.example']]);
+
+    $response = $this->withHeaders(['Origin' => 'https://evil.example'])->getJson('/api')->assertOk();
+
+    // the library answers with the one configured origin, which a browser on evil.example will reject
+    expect($response->headers->get('Access-Control-Allow-Origin'))->not->toBe('https://evil.example');
+});
