@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
+use Inertia\Testing\AssertableInertia as Assert;
 
 uses(RefreshDatabase::class);
 
@@ -87,6 +88,34 @@ it('saves the warning, store links and section badge for an administrator', func
         'app_store_url' => 'https://apps.apple.com/us/app/x/id1',
         'play_store_url' => 'https://play.google.com/store/apps/details?id=x',
     ])->and($section->fresh()->settings['badge'])->toBe('New');
+});
+
+it('loads saved values into the editor, clears a field and keeps the other settings', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    $site = ['site_name' => 'Store', 'phone' => '555-0100', 'nicotine_warning' => 'Old warning', 'app_store_url' => 'https://apps.apple.com/us/app/x/id1'];
+    $config = contentConfig($site);
+
+    $this->actingAs($admin)->get("/admin/homepage/{$config->id}/edit")
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('admin/homepage/edit')
+            ->where('config.site_settings.nicotine_warning', 'Old warning')
+            ->where('config.site_settings.app_store_url', 'https://apps.apple.com/us/app/x/id1')
+            ->where('newsletterSubscriberCount', 0)
+            ->has('newsletterExportUrl'));
+
+    // The editor submits every loaded setting back; an emptied input arrives as null.
+    $this->actingAs($admin)->patch("/admin/homepage/{$config->id}", siteUpdate($config, [...$site, 'nicotine_warning' => '', 'play_store_url' => 'https://play.google.com/store/apps/details?id=x']))
+        ->assertSessionHasNoErrors();
+
+    expect($config->fresh()->site_settings)->toMatchArray([
+        'site_name' => 'Store',
+        'phone' => '555-0100',
+        'nicotine_warning' => null,
+        'app_store_url' => 'https://apps.apple.com/us/app/x/id1',
+        'play_store_url' => 'https://play.google.com/store/apps/details?id=x',
+    ]);
+    $this->getJson('/api/homepage?client=new-england')->assertJsonPath('site.nicotine_warning', null)->assertJsonPath('site.site_name', 'Store');
 });
 
 it('rejects store links that are not https links on the store host', function (string $key, string $url) {
