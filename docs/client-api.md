@@ -121,6 +121,9 @@ Failed validation returns `422` with field-level detail:
   - [GET /api/addresses/{id}](#get-apiaddressesid)
   - [PATCH /api/addresses/{id}](#patch-apiaddressesid)
   - [DELETE /api/addresses/{id}](#delete-apiaddressesid)
+- [Homepage content](#homepage-content)
+  - [GET /api/homepage](#get-apihomepage)
+  - [POST /api/newsletter](#post-apinewsletter)
 
 ---
 
@@ -1647,3 +1650,71 @@ Reflects whether the order has been successfully sent to the ERP. Read-only — 
 | `syncing` | Currently being sent to ERP. |
 | `synced` | Successfully received by ERP. |
 | `failed` | All 3 delivery attempts failed. |
+
+---
+
+## Homepage content
+
+Public, no authentication. All content is managed in the admin under **Homepage Configs**.
+
+### GET /api/homepage
+
+`GET /api/homepage?client={client_key}`: site settings plus the active sections in display order.
+`422` without `client`, `404` when the config does not exist or is inactive.
+
+The `site` object always contains these keys; each is `null` when the admin has not set it:
+
+| Key | Type | Meaning |
+|---|---|---|
+| `nicotine_warning` | string (≤ 300) \| null | Text of the warning bar shown at the top of every page. `null` = no bar. |
+| `app_store_url` | string \| null | `https://apps.apple.com/…` listing of the mobile app. |
+| `play_store_url` | string \| null | `https://play.google.com/…` listing of the mobile app. |
+
+The store links are validated on save: `https` only, exactly `apps.apple.com` / `play.google.com`, no
+credentials or port.
+
+Every `product_carousel` section's `settings` object always contains:
+
+| Key | Type | Meaning |
+|---|---|---|
+| `badge` | string (≤ 20) \| null | Label shown on every product card of that row (for example `New`). `null` = no badge. |
+
+```json
+{
+  "client": "new-england",
+  "site": {
+    "nicotine_warning": "WARNING: This product contains nicotine. Nicotine is an addictive chemical.",
+    "app_store_url": "https://apps.apple.com/in/app/new-england-distribution/id6741199522",
+    "play_store_url": "https://play.google.com/store/apps/details?id=com.brainbean.newengland",
+    "newsletter_enabled": true
+  },
+  "sections": [
+    { "id": 3, "type": "product_carousel", "title": "New Arrivals",
+      "settings": { "limit": 14, "product_ids": [52142], "badge": "New" }, "data": { "product_ids": [52142] }, "items": [] }
+  ]
+}
+```
+
+### POST /api/newsletter
+
+Newsletter sign-up from the storefront.
+
+**Body**
+
+| Field | Rules |
+|---|---|
+| `client` | required, the homepage config's `client_key` |
+| `email` | required, valid e-mail, ≤ 255 characters (stored lower-cased) |
+| `website` | optional honeypot; leave empty (a filled value is accepted but not stored) |
+
+**Responses**
+
+| Status | Body |
+|---|---|
+| `200` | `{ "message": "Thanks for subscribing." }`, the same for new and already-subscribed addresses |
+| `404` | `{ "message": "Newsletter signup is not available." }`: unknown/inactive client or `newsletter_enabled` is off |
+| `422` | validation errors |
+| `429` | more than 5 sign-ups per minute or 50 per day from one IP address |
+
+Only the e-mail address and time are stored (no IP address). Administrators download the list as CSV from the
+Newsletter card of the homepage config.

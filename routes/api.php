@@ -4,6 +4,7 @@ use App\Http\Controllers\AddressController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\HomepageController;
+use App\Http\Controllers\NewsletterController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\CategoryController;
@@ -24,6 +25,11 @@ Route::prefix('auth')->group(function () {
 Route::get('/homepage/catalogs/{item}/pdf', [HomepageController::class, 'catalogPdf'])
     ->whereNumber('item')
     ->name('homepage.catalog.pdf');
+
+// Storefront newsletter sign-up (public, throttled; same answer for new and existing addresses).
+Route::post('/newsletter', [NewsletterController::class, 'store'])
+    ->middleware('throttle:api-newsletter')
+    ->name('api.newsletter.store');
 
 Route::middleware('auth.optional')->group(function () {
     Route::get('/homepage',        [HomepageController::class, 'show']);

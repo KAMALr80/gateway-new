@@ -191,6 +191,7 @@ export interface HomepageSectionSettings {
     limit?: number;
     offset?: number;
     product_ids?: number[];
+    badge?: string | null;
     // brand_showcase
     brand_ids?: number[];
     // catalog_showcase
@@ -266,6 +267,9 @@ export interface SiteSettings {
     footer_copyright?: string;
     footer_legal_notice?: string;
     business_hours_title?: string;
+    nicotine_warning?: string | null;
+    app_store_url?: string | null;
+    play_store_url?: string | null;
     nav_groups?: { label: string; keywords: string[]; url?: string }[];
     footer_columns?: { title: string; links: { label: string; url: string }[] }[];
     business_hours?: string[];

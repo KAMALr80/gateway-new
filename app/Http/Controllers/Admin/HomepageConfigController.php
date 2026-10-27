@@ -9,6 +9,7 @@ use App\Models\HomepageConfig;
 use App\Models\HomepageSection;
 use App\Models\HomepageSectionItem;
 use App\Models\Product;
+use App\Rules\HttpsUrlOnHost;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -56,7 +57,28 @@ class HomepageConfigController extends Controller
             'categories' => Category::select('id', 'name')->where('is_active', true)->orderBy('name')->get(),
             'brands' => Brand::select('id', 'name')->where('is_active', true)->orderBy('name')->get(),
             'products' => Product::select('id', 'name', 'sku')->where('is_active', true)->whereNull('parent_id')->orderBy('name')->get(),
+            'newsletterSubscriberCount' => $config->newsletterSubscriptions()->count(),
+            'newsletterExportUrl' => route('admin.homepage.newsletter.export', $config),
         ]);
+    }
+
+    /** CSV of the storefront's newsletter sign-ups (POST /api/newsletter) for this config. */
+    public function exportNewsletterSubscriptions(HomepageConfig $config)
+    {
+        $filename = "newsletter-{$config->client_key}-".now()->format('Y-m-d').'.csv';
+
+        return response()->streamDownload(function () use ($config) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['email', 'subscribed_at']);
+            $config->newsletterSubscriptions()->orderBy('id')->chunk(500, function ($rows) use ($out) {
+                foreach ($rows as $row) {
+                    // A leading = + - @ would be run as a formula by spreadsheet apps.
+                    $email = preg_match('/^[=+\-@\t\r]/', $row->email) ? "'{$row->email}" : $row->email;
+                    fputcsv($out, [$email, $row->created_at?->toIso8601String()]);
+                }
+            });
+            fclose($out);
+        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8', 'Cache-Control' => 'no-store']);
     }
 
     public function update(Request $request, HomepageConfig $config)
@@ -91,6 +113,9 @@ class HomepageConfigController extends Controller
             'site_settings.footer_copyright' => 'nullable|string|max:500',
             'site_settings.footer_legal_notice' => 'nullable|string|max:3000',
             'site_settings.business_hours_title' => 'nullable|string|max:120',
+            'site_settings.nicotine_warning' => 'nullable|string|max:300',
+            'site_settings.app_store_url' => ['nullable', 'string', 'max:2048', new HttpsUrlOnHost('apps.apple.com')],
+            'site_settings.play_store_url' => ['nullable', 'string', 'max:2048', new HttpsUrlOnHost('play.google.com')],
             'site_settings.nav_groups' => 'array|max:30',
             'site_settings.nav_groups.*.label' => 'required|string|max:80',
             'site_settings.nav_groups.*.keywords' => 'array|max:30',
@@ -487,6 +512,7 @@ class HomepageConfigController extends Controller
 
             'product_carousel' => $request->validate([
                 'settings.limit' => 'integer|min:1|max:50',
+                'settings.badge' => 'nullable|string|max:20',
                 'settings.product_ids' => 'present|array|max:50',
                 'settings.product_ids.*' => 'integer|distinct|exists:products,id',
             ])['settings'] ?? [],
