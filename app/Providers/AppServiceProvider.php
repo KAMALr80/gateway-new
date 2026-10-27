@@ -51,6 +51,12 @@ class AppServiceProvider extends ServiceProvider
 
         RateLimiter::for('api-token-refresh', fn (Request $request) => Limit::perMinute(30)->by($request->ip()));
 
+        // Public newsletter sign-ups.
+        RateLimiter::for('api-newsletter', fn (Request $request) => [
+            Limit::perMinute(5)->by($request->ip()),
+            Limit::perDay(50)->by($request->ip()),
+        ]);
+
         // Cart / wishlist / address writes by a signed-in user.
         RateLimiter::for('api-user-writes', fn (Request $request) => Limit::perMinute(120)->by(
             (string) (auth('api')->id() ?? $request->ip())

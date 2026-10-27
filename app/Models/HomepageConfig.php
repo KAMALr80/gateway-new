@@ -26,6 +26,11 @@ class HomepageConfig extends Model
         return $this->hasMany(HomepageSection::class)->orderBy('sort_order');
     }
 
+    public function newsletterSubscriptions(): HasMany
+    {
+        return $this->hasMany(NewsletterSubscription::class);
+    }
+
     public function activeSections(): HasMany
     {
         return $this->hasMany(HomepageSection::class)->where('is_active', true)->orderBy('sort_order');

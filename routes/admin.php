@@ -38,6 +38,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'verified', 'admin']
     Route::get('homepage/{config}/edit', [HomepageConfigController::class, 'edit'])->name('homepage.edit');
     Route::patch('homepage/{config}', [HomepageConfigController::class, 'update'])->name('homepage.update');
     Route::delete('homepage/{config}', [HomepageConfigController::class, 'destroy'])->name('homepage.destroy');
+    Route::get('homepage/{config}/newsletter-subscriptions.csv', [HomepageConfigController::class, 'exportNewsletterSubscriptions'])->name('homepage.newsletter.export');
     Route::post('homepage/{config}/sections/reorder', [HomepageConfigController::class, 'reorderSections'])->name('homepage.sections.reorder');
     Route::post('homepage/{config}/sections', [HomepageConfigController::class, 'storeSection'])->name('homepage.sections.store');
     Route::patch('homepage/{config}/sections/{section}', [HomepageConfigController::class, 'updateSection'])->name('homepage.sections.update');

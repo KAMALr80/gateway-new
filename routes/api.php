@@ -6,6 +6,7 @@ use App\Http\Controllers\BrandController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\HomepageController;
 use App\Http\Controllers\MediaThumbnailController;
+use App\Http\Controllers\NewsletterController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\CategoryController;
@@ -35,6 +36,11 @@ Route::prefix('auth')->group(function () {
 Route::get('/homepage/catalogs/{item}/pdf', [HomepageController::class, 'catalogPdf'])
     ->whereNumber('item')
     ->name('homepage.catalog.pdf');
+
+// Storefront newsletter sign-up (public, throttled; same answer for new and existing addresses).
+Route::post('/newsletter', [NewsletterController::class, 'store'])
+    ->middleware('throttle:api-newsletter')
+    ->name('api.newsletter.store');
 
 // WebP variants of product images (public; immutable — the hash changes when the source changes).
 Route::get('/media/{id}/{hash}/{size}.webp', [MediaThumbnailController::class, 'show'])

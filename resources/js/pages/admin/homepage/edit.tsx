@@ -69,6 +69,8 @@ interface Props {
     categories: Pick<AdminCategory, 'id' | 'name'>[];
     brands: Pick<AdminBrand, 'id' | 'name'>[];
     products: Pick<AdminProduct, 'id' | 'name' | 'sku'>[];
+    newsletterSubscriberCount: number;
+    newsletterExportUrl: string;
 }
 
 const SECTION_LABELS: Record<HomepageSectionType, string> = {
@@ -322,6 +324,22 @@ function SectionFields({
                         />
                     </div>
                     <div className="grid gap-2">
+                        <Label htmlFor="s-badge">Badge on product cards</Label>
+                        <Input
+                            id="s-badge"
+                            maxLength={20}
+                            placeholder="e.g. New"
+                            value={data.settings.badge ?? ''}
+                            onChange={(e) =>
+                                setSetting('badge', e.target.value || null)
+                            }
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Optional. Shown on every product in this row.
+                        </p>
+                        <InputError message={errors['settings.badge']} />
+                    </div>
+                    <div className="grid gap-2">
                         <Label>
                             Products ({data.settings.product_ids?.length ?? 0}{' '}
                             selected)
@@ -515,6 +533,8 @@ export default function HomepageEdit({
     categories,
     brands,
     products,
+    newsletterSubscriberCount,
+    newsletterExportUrl,
 }: Props) {
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Admin', href: adminRoutes.dashboard().url },
@@ -1320,6 +1340,95 @@ export default function HomepageEdit({
                                         | optional URL
                                     </p>
                                 </div>
+                                <div className="grid gap-2 md:col-span-2">
+                                    <Label htmlFor="site-nicotine-warning">
+                                        Warning bar (top of every page)
+                                    </Label>
+                                    <Input
+                                        id="site-nicotine-warning"
+                                        maxLength={300}
+                                        value={
+                                            configForm.data.site_settings
+                                                .nicotine_warning ?? ''
+                                        }
+                                        onChange={(e) =>
+                                            setSiteSetting(
+                                                'nicotine_warning',
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        For example the required nicotine
+                                        warning. Leave empty to hide the bar.
+                                    </p>
+                                    <InputError
+                                        message={
+                                            configForm.errors[
+                                                'site_settings.nicotine_warning'
+                                            ]
+                                        }
+                                    />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="site-app-store-url">
+                                        App Store link
+                                    </Label>
+                                    <Input
+                                        id="site-app-store-url"
+                                        type="url"
+                                        placeholder="https://apps.apple.com/…"
+                                        value={
+                                            configForm.data.site_settings
+                                                .app_store_url ?? ''
+                                        }
+                                        onChange={(e) =>
+                                            setSiteSetting(
+                                                'app_store_url',
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                    <InputError
+                                        message={
+                                            configForm.errors[
+                                                'site_settings.app_store_url'
+                                            ]
+                                        }
+                                    />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="site-play-store-url">
+                                        Google Play link
+                                    </Label>
+                                    <Input
+                                        id="site-play-store-url"
+                                        type="url"
+                                        placeholder="https://play.google.com/…"
+                                        value={
+                                            configForm.data.site_settings
+                                                .play_store_url ?? ''
+                                        }
+                                        onChange={(e) =>
+                                            setSiteSetting(
+                                                'play_store_url',
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                    <InputError
+                                        message={
+                                            configForm.errors[
+                                                'site_settings.play_store_url'
+                                            ]
+                                        }
+                                    />
+                                </div>
+                                <p className="text-xs text-muted-foreground md:col-span-2">
+                                    The storefront shows its &quot;Get our
+                                    app&quot; buttons only when at least one
+                                    store link is set.
+                                </p>
                             </div>
                         </div>
 
@@ -1496,6 +1605,22 @@ export default function HomepageEdit({
                                         }
                                     />
                                     <Label>Show newsletter section</Label>
+                                </div>
+                                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2 text-sm md:col-span-2">
+                                    <span>
+                                        {newsletterSubscriberCount} subscriber
+                                        {newsletterSubscriberCount === 1
+                                            ? ''
+                                            : 's'}
+                                    </span>
+                                    {newsletterSubscriberCount > 0 && (
+                                        <a
+                                            href={newsletterExportUrl}
+                                            className="font-medium text-primary underline-offset-4 hover:underline"
+                                        >
+                                            Download CSV
+                                        </a>
+                                    )}
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Title</Label>

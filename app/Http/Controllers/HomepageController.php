@@ -12,6 +12,18 @@ use Illuminate\Support\Facades\Storage;
 
 class HomepageController extends Controller
 {
+    /** Site settings that are always part of the response, null when the admin has not set them. */
+    private const SITE_SETTING_KEYS = [
+        'nicotine_warning' => null,
+        'app_store_url' => null,
+        'play_store_url' => null,
+    ];
+
+    /** Per section type: settings that are always part of the response, null when unset. */
+    private const SECTION_SETTING_KEYS = [
+        'product_carousel' => ['badge' => null],
+    ];
+
     public function show(Request $request)
     {
         $clientKey = $request->input('client');
@@ -36,7 +48,8 @@ class HomepageController extends Controller
             'title'    => $section->title,
             'sort_order' => $section->sort_order,
             'is_active' => $section->is_active,
-            'settings' => (object) ($section->settings ?? []),
+            // Keys listed in SECTION_SETTING_KEYS are always present (null when unset), so clients can rely on them.
+            'settings' => (object) (($section->settings ?? []) + (self::SECTION_SETTING_KEYS[$section->type] ?? [])),
             'data'     => $this->resolveData($section->type, $section->settings ?? []),
             'items'    => $section->activeItems->map(fn ($item) => [
                 'id' => $item->id,
@@ -59,7 +72,7 @@ class HomepageController extends Controller
         return response()->json([
             'client'   => $config->client_key,
             'label'    => $config->label,
-            'site'     => array_merge($siteSettings, [
+            'site'     => array_merge(self::SITE_SETTING_KEYS, $siteSettings, [
                 'logo_url' => $config->site_logo_path
                     ? url(Storage::disk('public')->url($config->site_logo_path))
                     : ($siteSettings['logo_url'] ?? null),
