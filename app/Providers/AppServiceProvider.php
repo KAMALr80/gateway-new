@@ -31,7 +31,7 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Rate limits for the public storefront API.
+     * Rate limits for the public storefront API and the admin homepage import/export.
      */
     protected function configureRateLimiting(): void
     {
@@ -40,6 +40,9 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(5)->by($request->ip()),
             Limit::perDay(50)->by($request->ip()),
         ]);
+
+        // Homepage package export / validate / confirm / rollback, per administrator.
+        RateLimiter::for('homepage-transfer', fn (Request $request) => Limit::perMinute((int) config('homepage_transfer.rate_limit_per_minute'))->by((string) ($request->user()?->id ?? $request->ip())));
     }
 
     /**
