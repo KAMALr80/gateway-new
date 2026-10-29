@@ -33,7 +33,12 @@ class SendOrderToErp implements ShouldQueue
             'sync_status' => 'syncing',
         ]);
 
-        $erpService->sendOrder($this->order);
+        // sendOrder() records the failure on the order and returns false instead of throwing. Throwing here
+        // is what makes the queue retry with $backoff; without it a single ERP outage left the order
+        // 'pending' forever and it never reached the ERP.
+        if (! $erpService->sendOrder($this->order)) {
+            throw new \RuntimeException("ERP sync failed for order {$this->order->id}: {$this->order->sync_error}");
+        }
     }
 
     public function failed(\Throwable $e): void

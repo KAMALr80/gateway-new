@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 
 class AppServiceProvider extends ServiceProvider
@@ -31,15 +32,35 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Rate limits for the public storefront API and the admin homepage import/export.
+     * Rate limits for the public storefront API and the admin homepage import/export. The admin panel login is
+     * throttled by Fortify; the api-* limits protect the JWT endpoints the storefront uses.
      */
     protected function configureRateLimiting(): void
     {
+        // Brute-force protection: per account+IP, plus a looser per-IP cap against credential stuffing.
+        RateLimiter::for('api-login', fn (Request $request) => [
+            Limit::perMinute(5)->by(Str::lower((string) $request->input('email')).'|'.$request->ip()),
+            Limit::perMinute(30)->by($request->ip()),
+        ]);
+
+        // Registration, password reset e-mails and reset attempts.
+        RateLimiter::for('api-auth-sensitive', fn (Request $request) => [
+            Limit::perMinute(5)->by($request->ip()),
+            Limit::perHour(30)->by($request->ip()),
+        ]);
+
+        RateLimiter::for('api-token-refresh', fn (Request $request) => Limit::perMinute(30)->by($request->ip()));
+
         // Public newsletter sign-ups.
         RateLimiter::for('api-newsletter', fn (Request $request) => [
             Limit::perMinute(5)->by($request->ip()),
             Limit::perDay(50)->by($request->ip()),
         ]);
+
+        // Cart / wishlist / address writes by a signed-in user.
+        RateLimiter::for('api-user-writes', fn (Request $request) => Limit::perMinute(120)->by(
+            (string) (auth('api')->id() ?? $request->ip())
+        ));
 
         // Homepage package export / validate / confirm / rollback, per administrator.
         RateLimiter::for('homepage-transfer', fn (Request $request) => Limit::perMinute((int) config('homepage_transfer.rate_limit_per_minute'))->by((string) ($request->user()?->id ?? $request->ip())));
