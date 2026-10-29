@@ -4,6 +4,7 @@ use App\Models\Brand;
 use App\Models\Category;
 use App\Models\HomepageConfig;
 use App\Models\HomepageSectionItem;
+use App\Models\Product;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -246,6 +247,62 @@ it('keeps featured category and brand selections on homepage sections', function
     $this->getJson('/api/homepage?client=new-england')
         ->assertJsonPath('sections.0.data.category.id', $category->id)
         ->assertJsonPath('sections.1.data.brands.0.id', $brand->id);
+});
+
+it('adds a Kratom product carousel between existing sections and serves its products', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    $config = HomepageConfig::create(['client_key' => 'new-england', 'label' => 'New England', 'is_active' => true]);
+    $cigar = $config->sections()->create(['type' => 'product_carousel', 'title' => 'Top Cigar', 'sort_order' => 0, 'is_active' => true, 'settings' => ['limit' => 14, 'product_ids' => []]]);
+    $hydroxy = $config->sections()->create(['type' => 'product_carousel', 'title' => '7-Hydroxymitragynine', 'sort_order' => 1, 'is_active' => true, 'settings' => ['limit' => 14, 'product_ids' => []]]);
+    $brands = $config->sections()->create(['type' => 'brand_showcase', 'title' => 'Top Brands', 'sort_order' => 2, 'is_active' => true, 'settings' => ['brand_ids' => []]]);
+    $kratom = Category::create(['name' => 'Kratom', 'slug' => 'kratom', 'is_active' => true]);
+    $product = fn (string $name, array $extra = []) => Product::create($extra + ['name' => $name, 'category_id' => $kratom->id, 'regular_price' => 10, 'is_active' => true, 'in_stock' => true]);
+    [$a, $b, $c] = [$product('Kratom A'), $product('Kratom B'), $product('Kratom C')];
+    $inactive = $product('Kratom retired', ['is_active' => false]);
+    $variant = $product('Kratom A - 10ct', ['parent_id' => $a->id]);
+
+    // Created through the same admin endpoint and product rules as every product carousel...
+    $this->actingAs($admin)->post("/admin/homepage/{$config->id}/sections", [
+        'type' => 'product_carousel', 'title' => 'Kratom', 'is_active' => true,
+        'settings' => ['limit' => 14, 'product_ids' => [$b->id, $a->id, $inactive->id, $variant->id, $c->id]],
+    ])->assertSessionHasNoErrors();
+    $section = $config->sections()->where('title', 'Kratom')->firstOrFail();
+    expect($section->sort_order)->toBe(3)                                       // a new section is added last
+        ->and($section->settings)->toBe(['limit' => 14, 'product_ids' => [$b->id, $a->id, $inactive->id, $variant->id, $c->id]]);
+
+    // ...and placed after Top Cigar with the existing ordering endpoint, keeping the other sections in their order.
+    $this->actingAs($admin)->post("/admin/homepage/{$config->id}/sections/reorder", ['sections' => [
+        ['id' => $cigar->id, 'sort_order' => 0], ['id' => $section->id, 'sort_order' => 1],
+        ['id' => $hydroxy->id, 'sort_order' => 2], ['id' => $brands->id, 'sort_order' => 3],
+    ]])->assertSessionHasNoErrors();
+
+    $this->getJson('/api/homepage?client=new-england')->assertOk()
+        ->assertJsonPath('sections.*.title', ['Top Cigar', 'Kratom', '7-Hydroxymitragynine', 'Top Brands'])
+        ->assertJsonPath('sections.1.type', 'product_carousel')
+        // Selected order kept; inactive products and variants are not shown.
+        ->assertJsonPath('sections.1.data.product_ids', [$b->id, $a->id, $c->id]);
+    $this->getJson('/api/products?ids='.implode(',', [$b->id, $a->id, $c->id]))->assertOk()
+        ->assertJsonCount(3, 'data');
+});
+
+it('saves Kratom carousel edits with the product carousel validation', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    $config = HomepageConfig::create(['client_key' => 'new-england', 'label' => 'New England', 'is_active' => true]);
+    $section = $config->sections()->create(['type' => 'product_carousel', 'title' => 'Kratom', 'sort_order' => 0, 'is_active' => true, 'settings' => ['limit' => 14, 'product_ids' => []]]);
+    [$a, $b] = [Product::create(['name' => 'Kratom A', 'regular_price' => 10, 'is_active' => true]), Product::create(['name' => 'Kratom B', 'regular_price' => 10, 'is_active' => true])];
+    $url = "/admin/homepage/{$config->id}/sections/{$section->id}";
+    $save = fn (array $settings, bool $active = true) => $this->actingAs($admin)->patch($url, ['type' => 'product_carousel', 'title' => 'Kratom', 'is_active' => $active, 'settings' => $settings]);
+
+    $save(['limit' => 1, 'product_ids' => [$b->id, $a->id]])->assertSessionHasNoErrors();
+    $this->getJson('/api/homepage?client=new-england')->assertJsonPath('sections.0.data.product_ids', [$b->id]);   // limit applies
+
+    $save(['limit' => 14, 'product_ids' => [999999]])->assertSessionHasErrors('settings.product_ids.0');
+    $save(['limit' => 14, 'product_ids' => [$a->id, $a->id]])->assertSessionHasErrors('settings.product_ids.0');
+    $save(['limit' => 51, 'product_ids' => [$a->id]])->assertSessionHasErrors('settings.limit');
+    expect($section->fresh()->settings['product_ids'])->toBe([$b->id, $a->id]);
+
+    $save(['limit' => 14, 'product_ids' => [$a->id]], active: false)->assertSessionHasNoErrors();
+    $this->getJson('/api/homepage?client=new-england')->assertJsonCount(0, 'sections');
 });
 
 it('rejects a remote image URL that redirects to a private address', function () {
